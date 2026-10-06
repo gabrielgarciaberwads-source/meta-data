@@ -1,0 +1,108 @@
+name: Meta Raw dashboard
+
+on:
+  pull_request:
+    paths:
+      - 'projects/meta-raw-pipeline/**'
+      - '.github/workflows/meta-raw-dashboard.yml'
+  workflow_dispatch:
+    inputs:
+      publish_image:
+        description: Publish the dashboard image to GHCR
+        required: true
+        type: boolean
+        default: false
+      deploy:
+        description: Deploy only the meta-raw-dashboard service after publishing
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/ownerinc/meta-raw-dashboard
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/meta-raw-pipeline
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify dashboard
+        run: npm run verify
+
+  image:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_image == true
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish dashboard image
+        uses: docker/build-push-action@v6
+        with:
+          context: projects/meta-raw-pipeline
+          file: projects/meta-raw-pipeline/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_image == true && inputs.deploy == true
+    needs: image
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install SSH key and host verification
+        env:
+          VPS_SSH_KEY: ${{ secrets.OWNERINC_VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.OWNERINC_VPS_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
+      - name: Authenticate VPS to GHCR
+        env:
+          VPS_HOST: ${{ secrets.OWNERINC_VPS_HOST }}
+          VPS_USER: ${{ secrets.OWNERINC_VPS_USER }}
+          GHCR_TOKEN: ${{ secrets.OWNERINC_GHCR_READ_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh "$VPS_USER@$VPS_HOST" 'docker login ghcr.io --username ownerinc-deploy --password-stdin >/dev/null'
+      - name: Copy deployment files
+        env:
+          VPS_HOST: ${{ secrets.OWNERINC_VPS_HOST }}
+          VPS_USER: ${{ secrets.OWNERINC_VPS_USER }}
+        run: |
+          ssh "$VPS_USER@$VPS_HOST" 'install -d -m 755 /opt/ownerinc/apps/meta-raw-pipeline'
+          scp projects/meta-raw-pipeline/deploy/dashboard-compose.yml projects/meta-raw-pipeline/deploy/deploy-dashboard.sh "$VPS_USER@$VPS_HOST:/opt/ownerinc/apps/meta-raw-pipeline/"
+          ssh "$VPS_USER@$VPS_HOST" 'chmod 700 /opt/ownerinc/apps/meta-raw-pipeline/deploy-dashboard.sh'
+      - name: Deploy only the dashboard service
+        env:
+          VPS_HOST: ${{ secrets.OWNERINC_VPS_HOST }}
+          VPS_USER: ${{ secrets.OWNERINC_VPS_USER }}
+          DASHBOARD_IMAGE: ${{ env.IMAGE }}:${{ github.sha }}
+        run: |
+          ssh "$VPS_USER@$VPS_HOST" "DASHBOARD_IMAGE='$DASHBOARD_IMAGE' /opt/ownerinc/apps/meta-raw-pipeline/deploy-dashboard.sh"

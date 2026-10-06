@@ -1,0 +1,48 @@
+name: meta-raw-dashboard
+
+services:
+  dashboard:
+    image: ${DASHBOARD_IMAGE:?DASHBOARD_IMAGE must be set}
+    container_name: meta-raw-dashboard
+    restart: unless-stopped
+    env_file:
+      - /opt/ownerinc/secrets/meta-raw-pipeline/dashboard.env
+    environment:
+      NODE_ENV: production
+      PORT: "4178"
+      META_RAW_DB_HOST: meta-raw-postgres
+      META_RAW_DB_PORT: "5432"
+      META_RAW_DB_CA_FILE: /run/secrets/meta-raw/ca.crt
+    volumes:
+      - /opt/ownerinc/secrets/meta-raw-pipeline/tls/server/ca.crt:/run/secrets/meta-raw/ca.crt:ro
+    networks:
+      meta_raw_internal:
+      ownerinc_proxy:
+    expose:
+      - "4178"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4178/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,uid=1000,gid=1000
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 0.5
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  meta_raw_internal:
+    name: meta_raw_internal
+    external: true
+  ownerinc_proxy:
+    name: ownerinc_proxy
+    external: true

@@ -1,0 +1,49 @@
+name: meta-raw-pipeline
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: meta-raw-postgres
+    restart: unless-stopped
+    env_file:
+      - /opt/ownerinc/secrets/meta-raw-pipeline/postgres-admin.env
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/tls/server.crt
+      - -c
+      - ssl_key_file=/tls/server.key
+      - -c
+      - hba_file=/tls/pg_hba.conf
+    volumes:
+      - /opt/ownerinc/apps/meta-raw-pipeline/postgres:/var/lib/postgresql/data
+      - /opt/ownerinc/secrets/meta-raw-pipeline/tls/server:/tls:ro
+    networks:
+      meta_raw_internal:
+      n8n_internal:
+        aliases:
+          - meta-raw-postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+networks:
+  meta_raw_internal:
+    name: meta_raw_internal
+    driver: bridge
+    internal: true
+  n8n_internal:
+    external: true

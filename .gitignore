@@ -1,0 +1,13 @@
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules/
+**/dist/
+**/coverage/
+**/.openchamber/
+**/data/snapshots/
+**/data/briefings/
+**/data/output/
+**/data/logs/
+**/*.log
+**/test-results/

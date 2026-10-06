@@ -1,0 +1,432 @@
+{
+    "exportedAt":  "2026-10-06T13:35:26.9870155Z",
+    "source":  "https://n8n.ownerinc.com.br",
+    "workflow":  {
+                     "id":  "txQorqTsuTEPasfb",
+                     "name":  "OWNERINC - META RAW - Collaborative Media - C2",
+                     "active":  false,
+                     "activeVersionId":  null,
+                     "versionId":  "3d77de3b-5837-47a9-b905-c47614954a54",
+                     "nodes":  [
+                                   {
+                                       "id":  "db70fd18-0553-4c16-93f7-5225c59e1dce",
+                                       "name":  "Manual Trigger",
+                                       "type":  "n8n-nodes-base.manualTrigger",
+                                       "typeVersion":  1,
+                                       "position":  [
+                                                        240,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+
+                                                      }
+                                   },
+                                   {
+                                       "id":  "aa38e78f-5b53-4972-8c4b-a8c9aa11f028",
+                                       "name":  "Start Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        520,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "INSERT INTO meta_raw.collection_runs (workflow_name, source, status, metadata) VALUES (\u0027OWNERINC - META RAW - Collaborative Media - C2\u0027,\u0027instagram_graph:/collaborative_media\u0027,\u0027RUNNING\u0027,\u0027{\"api_version\":\"v23.0\",\"scope\":\"collaborative_media\"}\u0027::jsonb) RETURNING id;"
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "5f4492f6-0202-4929-b414-2f6ca21775b6",
+                                       "name":  "Fetch Collaborative Media",
+                                       "type":  "n8n-nodes-base.httpRequest",
+                                       "typeVersion":  4.4,
+                                       "position":  [
+                                                        800,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "method":  "GET",
+                                                          "url":  "https://graph.facebook.com/v23.0/17841449595671459/collaborative_media",
+                                                          "authentication":  "genericCredentialType",
+                                                          "genericAuthType":  "httpHeaderAuth",
+                                                          "sendQuery":  true,
+                                                          "specifyQuery":  "keypair",
+                                                          "queryParameters":  {
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "fields",
+                                                                                                         "value":  "id,media_type,media_product_type,caption,timestamp,permalink,username,owner"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "limit",
+                                                                                                         "value":  "100"
+                                                                                                     }
+                                                                                                 ]
+                                                                              },
+                                                          "options":  {
+                                                                          "pagination":  {
+                                                                                             "paginationMode":  "updateAParameterInEachRequest",
+                                                                                             "parameters":  {
+                                                                                                                "parameters":  [
+                                                                                                                                   {
+                                                                                                                                       "type":  "qs",
+                                                                                                                                       "name":  "after",
+                                                                                                                                       "value":  "={{ $response.body.paging?.cursors?.after }}"
+                                                                                                                                   }
+                                                                                                                               ]
+                                                                                                            },
+                                                                                             "paginationCompleteWhen":  "other",
+                                                                                             "completeExpression":  "={{ !$response.body.paging?.next }}",
+                                                                                             "limitPagesFetched":  true,
+                                                                                             "maxRequests":  100,
+                                                                                             "requestInterval":  250
+                                                                                         }
+                                                                      },
+                                                          "response":  {
+                                                                           "fullResponse":  true,
+                                                                           "neverError":  true,
+                                                                           "responseFormat":  "json",
+                                                                           "response":  {
+                                                                                            "fullResponse":  true,
+                                                                                            "neverError":  true,
+                                                                                            "responseFormat":  "json"
+                                                                                        }
+                                                                       }
+                                                      },
+                                       "credentials":  {
+                                                           "httpHeaderAuth":  {
+                                                                                  "id":  "MGYzd9IzTNPC8EN2",
+                                                                                  "name":  "OWNERINC - META RAW - META GRAPH API - RUNTIME V1"
+                                                                              }
+                                                       },
+                                       "retryOnFail":  true,
+                                       "maxTries":  3,
+                                       "waitBetweenTries":  1000,
+                                       "onError":  "continueRegularOutput"
+                                   },
+                                   {
+                                       "id":  "02db3333-d70a-4cb7-be75-0ff5e04eccb1",
+                                       "name":  "Normalize Collaborative Media",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1080,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const runId=$(\u0027Start Collection Run\u0027).first().json.id; const pages=items.map(i=\u003ei.json); const bodies=pages.map(p=\u003ep.body??p); const media=bodies.flatMap(p=\u003eArray.isArray(p.data)?p.data:[]); const errors=pages.filter(p=\u003eNumber(p.statusCode??200)\u003e=400||Boolean((p.body??p).error)); const last=bodies.at(-1)??{}; const paginationComplete=!last.paging?.next; const apiError=errors.some(p=\u003eNumber(p.statusCode??200)\u003e=500); const apiWarning=errors.length\u003e0||!media.length||!paginationComplete; const status=apiError?\u0027ERROR\u0027:apiWarning?\u0027WARNING\u0027:\u0027SUCCESS\u0027; const statusCode=Number(pages.at(-1)?.statusCode??200); const lit=v=\u003ev==null?\u0027NULL\u0027:\"\u0027\"+String(v).replaceAll(\"\u0027\",\"\u0027\u0027\")+\"\u0027\"; const json=v=\u003elit(JSON.stringify(v??{}))+\u0027::jsonb\u0027; const message=apiError?\u0027Meta API server error\u0027:errors.length?\u0027Meta API returned an error response\u0027:!media.length?\u0027No collaborative media returned\u0027:!paginationComplete?\u0027Pagination reached the 100-page safety limit\u0027:\u0027null\u0027; if(!media.length) return [{json:{hasMedia:false,_api_error:apiError,_api_warning:apiWarning,_pagination_complete:paginationComplete,sql:\"INSERT INTO meta_raw.integration_logs (collection_run_id,workflow_name,endpoint,status,http_status,error_code,error_message,finished_at) VALUES (\"+lit(runId)+\",\u0027OWNERINC - META RAW - Collaborative Media - C2\u0027,\u0027/collaborative_media\u0027,\"+lit(status)+\",\"+statusCode+\",\"+lit(apiError?\u0027COLLAB_SERVER_ERROR\u0027:apiWarning?\u0027COLLAB_WARNING\u0027:null)+\",\"+lit(message)+\",now());\"}}]; return media.map(m=\u003e({json:{hasMedia:true,media_id:m.id,media_payload:m,account_id:\u002717841449595671459\u0027,run_id:runId,_api_error:apiError,_api_warning:apiWarning,_pagination_complete:paginationComplete}}));"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "c10fc1db-9c9c-492a-91a2-af38d718be86",
+                                       "name":  "Media Returned?",
+                                       "type":  "n8n-nodes-base.if",
+                                       "typeVersion":  2.3,
+                                       "position":  [
+                                                        1360,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "conditions":  {
+                                                                             "combinator":  "and",
+                                                                             "options":  {
+                                                                                             "caseSensitive":  true,
+                                                                                             "leftValue":  "",
+                                                                                             "typeValidation":  "strict",
+                                                                                             "version":  2
+                                                                                         },
+                                                                             "conditions":  [
+                                                                                                {
+                                                                                                    "leftValue":  "={{ $json.hasMedia }}",
+                                                                                                    "rightValue":  true,
+                                                                                                    "operator":  {
+                                                                                                                     "type":  "boolean",
+                                                                                                                     "operation":  "true"
+                                                                                                                 }
+                                                                                                }
+                                                                                            ]
+                                                                         }
+                                                      }
+                                   },
+                                   {
+                                       "id":  "eeaa86da-f8a0-468d-bc39-3f775d430eeb",
+                                       "name":  "Fetch Collaborators",
+                                       "type":  "n8n-nodes-base.httpRequest",
+                                       "typeVersion":  4.4,
+                                       "position":  [
+                                                        1640,
+                                                        220
+                                                    ],
+                                       "parameters":  {
+                                                          "method":  "GET",
+                                                          "url":  "=https://graph.facebook.com/v23.0/{{ $json.media_id }}/collaborators",
+                                                          "authentication":  "genericCredentialType",
+                                                          "genericAuthType":  "httpHeaderAuth",
+                                                          "sendQuery":  true,
+                                                          "specifyQuery":  "keypair",
+                                                          "queryParameters":  {
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "fields",
+                                                                                                         "value":  "id,username,role,invite_status"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "limit",
+                                                                                                         "value":  "100"
+                                                                                                     }
+                                                                                                 ]
+                                                                              },
+                                                          "options":  {
+                                                                          "pagination":  {
+                                                                                             "paginationMode":  "updateAParameterInEachRequest",
+                                                                                             "parameters":  {
+                                                                                                                "parameters":  [
+                                                                                                                                   {
+                                                                                                                                       "type":  "qs",
+                                                                                                                                       "name":  "after",
+                                                                                                                                       "value":  "={{ $response.body.paging?.cursors?.after }}"
+                                                                                                                                   }
+                                                                                                                               ]
+                                                                                                            },
+                                                                                             "paginationCompleteWhen":  "other",
+                                                                                             "completeExpression":  "={{ !$response.body.paging?.next }}",
+                                                                                             "limitPagesFetched":  true,
+                                                                                             "maxRequests":  100,
+                                                                                             "requestInterval":  250
+                                                                                         }
+                                                                      },
+                                                          "response":  {
+                                                                           "fullResponse":  true,
+                                                                           "neverError":  true,
+                                                                           "responseFormat":  "json",
+                                                                           "response":  {
+                                                                                            "fullResponse":  true,
+                                                                                            "neverError":  true,
+                                                                                            "responseFormat":  "json"
+                                                                                        }
+                                                                       }
+                                                      },
+                                       "credentials":  {
+                                                           "httpHeaderAuth":  {
+                                                                                  "id":  "MGYzd9IzTNPC8EN2",
+                                                                                  "name":  "OWNERINC - META RAW - META GRAPH API - RUNTIME V1"
+                                                                              }
+                                                       },
+                                       "retryOnFail":  true,
+                                       "maxTries":  3,
+                                       "waitBetweenTries":  1000,
+                                       "onError":  "continueRegularOutput"
+                                   },
+                                   {
+                                       "id":  "448011a4-8517-4a19-8ac1-27bb50f24f69",
+                                       "name":  "Build Media and Collaborator Upserts",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1920,
+                                                        220
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const runId = $(\u0027Start Collection Run\u0027).first().json.id;\nconst mediaItems = $(\u0027Normalize Collaborative Media\u0027).all();\nconst lit = (value) =\u003e value === null || value === undefined ? \u0027NULL\u0027 : \"\u0027\" + String(value).replaceAll(\"\u0027\", \"\u0027\u0027\") + \"\u0027\";\nconst json = (value) =\u003e lit(JSON.stringify(value ?? {})) + \u0027::jsonb\u0027;\nconst out=[];\nfor (let i=0;i\u003citems.length;i++) {\n  const media = mediaItems[i]?.json ?? {};\n  const response = items[i].json?.body ?? items[i].json ?? {};\n  const collaborators = Array.isArray(response.data) ? response.data : [];\n  let sql = \"INSERT INTO meta_raw.instagram_media (account_id, instagram_media_id, media_type, media_product_type, caption, permalink, published_at, username, owner_instagram_id, is_collab, last_seen_at, raw_payload, collection_run_id) VALUES (\" + lit(\u002717841449595671459\u0027) + \",\" + lit(media.media_id) + \",\" + lit(media.media_payload?.media_type ?? null) + \",\" + lit(media.media_payload?.media_product_type ?? null) + \",\" + lit(media.media_payload?.caption ?? null) + \",\" + lit(media.media_payload?.permalink ?? null) + \",\" + lit(media.media_payload?.timestamp ?? null) + \",\" + lit(media.media_payload?.username ?? null) + \",\" + lit(media.media_payload?.owner?.id ?? null) + \",true,now(),\" + json(media.media_payload) + \",\" + lit(runId) + \") ON CONFLICT (account_id, instagram_media_id) DO UPDATE SET media_type=EXCLUDED.media_type, media_product_type=EXCLUDED.media_product_type, caption=EXCLUDED.caption, permalink=EXCLUDED.permalink, published_at=EXCLUDED.published_at, username=EXCLUDED.username, owner_instagram_id=EXCLUDED.owner_instagram_id, is_collab=true, last_seen_at=now(), raw_payload=EXCLUDED.raw_payload, collection_run_id=EXCLUDED.collection_run_id;\";\n  for (const collaborator of collaborators) sql += \"INSERT INTO meta_raw.instagram_media_collaborators (account_id, instagram_media_id, instagram_user_id, username, role, invite_status, last_seen_at, raw_payload, collection_run_id) VALUES (\" + lit(\u002717841449595671459\u0027) + \",\" + lit(media.media_id) + \",\" + lit(collaborator.id) + \",\" + lit(collaborator.username ?? null) + \",\" + lit(collaborator.role ?? null) + \",\" + lit(collaborator.invite_status ?? null) + \",now(),\" + json(collaborator) + \",\" + lit(runId) + \") ON CONFLICT (account_id, instagram_media_id, instagram_user_id) DO UPDATE SET username=EXCLUDED.username, role=EXCLUDED.role, invite_status=EXCLUDED.invite_status, last_seen_at=now(), raw_payload=EXCLUDED.raw_payload, collection_run_id=EXCLUDED.collection_run_id;\";\n  if (!collaborators.length) sql += \"INSERT INTO meta_raw.integration_logs (collection_run_id, workflow_name, endpoint, status, error_code, error_message, finished_at) VALUES (\" + lit(runId) + \",\u0027OWNERINC - META RAW - Collaborative Media - C2\u0027,\u0027/collaborators\u0027,\u0027WARNING\u0027,\u0027UNSUPPORTED_OR_EMPTY\u0027,\u0027No collaborators returned for media\u0027,now());\";\n  out.push({json:{sql}});\n}\nif(!out.length) out.push({json:{sql:\u0027SELECT 0 AS collaborative_media_written;\u0027}});\nreturn out;"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "3ad1ac13-2c31-4f9b-986f-a02cde648599",
+                                       "name":  "Upsert Collaborative Media and Collaborators",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        2200,
+                                                        220
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ $json.sql }}"
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "560b0eba-6ca7-4dad-9213-ea2a4bae7137",
+                                       "name":  "Finish Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        2480,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ \"UPDATE meta_raw.collection_runs SET status=\" + (Boolean($(\u0027Normalize Collaborative Media\u0027).first().json._api_error) ? \"\u0027FAILED\u0027\" : (Boolean($(\u0027Normalize Collaborative Media\u0027).first().json._api_warning) ? \"\u0027PARTIAL\u0027\" : \"\u0027SUCCEEDED\u0027\")) + \", finished_at=now(), error_count=error_count + \" + (Boolean($(\u0027Normalize Collaborative Media\u0027).first().json._api_warning) ? \"1\" : \"0\") + \" WHERE id=\u0027\" + $(\u0027Start Collection Run\u0027).first().json.id + \"\u0027::uuid RETURNING id,status;\" }}"
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "executeOnce":  true
+                                   },
+                                   {
+                                       "id":  "cbbe3fa4-3cfa-45b2-9d33-ac00f699480b",
+                                       "name":  "Log Unsupported or Empty Response",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1640,
+                                                        420
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ $json.sql }}"
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "onError":  "continueRegularOutput",
+                                       "executeOnce":  true
+                                   }
+                               ],
+                     "connections":  {
+                                         "Manual Trigger":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Start Collection Run",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                                         "Start Collection Run":  {
+                                                                      "main":  [
+                                                                                   [
+                                                                                       {
+                                                                                           "node":  "Fetch Collaborative Media",
+                                                                                           "type":  "main",
+                                                                                           "index":  0
+                                                                                       }
+                                                                                   ]
+                                                                               ]
+                                                                  },
+                                         "Fetch Collaborative Media":  {
+                                                                           "main":  [
+                                                                                        [
+                                                                                            {
+                                                                                                "node":  "Normalize Collaborative Media",
+                                                                                                "type":  "main",
+                                                                                                "index":  0
+                                                                                            }
+                                                                                        ]
+                                                                                    ]
+                                                                       },
+                                         "Normalize Collaborative Media":  {
+                                                                               "main":  [
+                                                                                            [
+                                                                                                {
+                                                                                                    "node":  "Media Returned?",
+                                                                                                    "type":  "main",
+                                                                                                    "index":  0
+                                                                                                }
+                                                                                            ]
+                                                                                        ]
+                                                                           },
+                                         "Media Returned?":  {
+                                                                 "main":  [
+                                                                              [
+                                                                                  {
+                                                                                      "node":  "Fetch Collaborators",
+                                                                                      "type":  "main",
+                                                                                      "index":  0
+                                                                                  }
+                                                                              ],
+                                                                              [
+                                                                                  {
+                                                                                      "node":  "Log Unsupported or Empty Response",
+                                                                                      "type":  "main",
+                                                                                      "index":  0
+                                                                                  }
+                                                                              ]
+                                                                          ]
+                                                             },
+                                         "Fetch Collaborators":  {
+                                                                     "main":  [
+                                                                                  [
+                                                                                      {
+                                                                                          "node":  "Build Media and Collaborator Upserts",
+                                                                                          "type":  "main",
+                                                                                          "index":  0
+                                                                                      }
+                                                                                  ]
+                                                                              ]
+                                                                 },
+                                         "Build Media and Collaborator Upserts":  {
+                                                                                      "main":  [
+                                                                                                   [
+                                                                                                       {
+                                                                                                           "node":  "Upsert Collaborative Media and Collaborators",
+                                                                                                           "type":  "main",
+                                                                                                           "index":  0
+                                                                                                       }
+                                                                                                   ]
+                                                                                               ]
+                                                                                  },
+                                         "Upsert Collaborative Media and Collaborators":  {
+                                                                                              "main":  [
+                                                                                                           [
+                                                                                                               {
+                                                                                                                   "node":  "Finish Collection Run",
+                                                                                                                   "type":  "main",
+                                                                                                                   "index":  0
+                                                                                                               }
+                                                                                                           ]
+                                                                                                       ]
+                                                                                          },
+                                         "Log Unsupported or Empty Response":  {
+                                                                                   "main":  [
+                                                                                                [
+                                                                                                    {
+                                                                                                        "node":  "Finish Collection Run",
+                                                                                                        "type":  "main",
+                                                                                                        "index":  0
+                                                                                                    }
+                                                                                                ]
+                                                                                            ]
+                                                                               }
+                                     },
+                     "settings":  {
+                                      "executionOrder":  "v1",
+                                      "availableInMCP":  true
+                                  },
+                     "meta":  {
+                                  "aiBuilderAssisted":  true,
+                                  "builderVariant":  "mcp"
+                              },
+                     "nodeGroups":  [
+
+                                    ],
+                     "description":  "Manual paginated collaborative media collection with collaborator roles, invite status, raw payloads, and safe unsupported-response warnings."
+                 }
+}

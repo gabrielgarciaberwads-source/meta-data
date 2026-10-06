@@ -1,0 +1,792 @@
+{
+    "exportedAt":  "2026-10-06T13:35:27.1839508Z",
+    "source":  "https://n8n.ownerinc.com.br",
+    "workflow":  {
+                     "id":  "RZx96pisAg2i9DaQ",
+                     "name":  "OWNERINC - META RAW - Ads Structure Sync - C3",
+                     "active":  false,
+                     "activeVersionId":  null,
+                     "versionId":  "5651de9d-98b6-49b8-8eea-4b690a957e14",
+                     "nodes":  [
+                                   {
+                                       "id":  "bd8d9d55-b815-44fc-8969-09337224c708",
+                                       "name":  "Manual Trigger",
+                                       "type":  "n8n-nodes-base.manualTrigger",
+                                       "typeVersion":  1,
+                                       "position":  [
+                                                        180,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+
+                                                      }
+                                   },
+                                   {
+                                       "id":  "9638738a-d75b-42dd-b4c0-240af618c401",
+                                       "name":  "Init Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        460,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "INSERT INTO meta_raw.collection_runs(workflow_name,source,status) VALUES (\u0027OWNERINC - META RAW - Ads Structure Sync - C3\u0027,\u0027meta_ads_structure\u0027,\u0027RUNNING\u0027) RETURNING id;",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "e64d68dc-29c0-4ad6-bda1-c5bfde19ece9",
+                                       "name":  "Fetch Campaigns",
+                                       "type":  "n8n-nodes-base.httpRequest",
+                                       "typeVersion":  4.4,
+                                       "position":  [
+                                                        760,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "method":  "GET",
+                                                          "url":  "https://graph.facebook.com/v23.0/act_277127183253232/campaigns",
+                                                          "authentication":  "genericCredentialType",
+                                                          "genericAuthType":  "httpHeaderAuth",
+                                                          "sendQuery":  true,
+                                                          "specifyQuery":  "keypair",
+                                                          "queryParameters":  {
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "fields",
+                                                                                                         "value":  "id,name,status,objective,created_time,updated_time"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "limit",
+                                                                                                         "value":  "100"
+                                                                                                     }
+                                                                                                 ]
+                                                                              },
+                                                          "options":  {
+                                                                          "pagination":  {
+                                                                                             "pagination":  {
+                                                                                                                "paginationMode":  "updateAParameterInEachRequest",
+                                                                                                                "parameters":  {
+                                                                                                                                   "parameters":  [
+                                                                                                                                                      {
+                                                                                                                                                          "type":  "qs",
+                                                                                                                                                          "name":  "after",
+                                                                                                                                                          "value":  "={{ $response.body.paging?.cursors?.after }}"
+                                                                                                                                                      }
+                                                                                                                                                  ]
+                                                                                                                               },
+                                                                                                                "paginationCompleteWhen":  "other",
+                                                                                                                "completeExpression":  "={{ !$response.body.paging?.next }}",
+                                                                                                                "limitPagesFetched":  true,
+                                                                                                                "maxRequests":  100,
+                                                                                                                "requestInterval":  250
+                                                                                                            }
+                                                                                         }
+                                                                      },
+                                                          "response":  {
+                                                                           "response":  {
+                                                                                            "fullResponse":  true,
+                                                                                            "neverError":  true,
+                                                                                            "responseFormat":  "json"
+                                                                                        }
+                                                                       }
+                                                      },
+                                       "credentials":  {
+                                                           "httpHeaderAuth":  {
+                                                                                  "id":  "MGYzd9IzTNPC8EN2",
+                                                                                  "name":  "OWNERINC - META RAW - META GRAPH API - RUNTIME V1"
+                                                                              }
+                                                       },
+                                       "retryOnFail":  true,
+                                       "maxTries":  3,
+                                       "waitBetweenTries":  1000,
+                                       "onError":  "continueRegularOutput"
+                                   },
+                                   {
+                                       "id":  "a017b013-3da2-44ca-9f3b-759b9443451e",
+                                       "name":  "Normalize Campaigns",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1060,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const q=v=\u003ev==null||v===\u0027\u0027?\u0027NULL\u0027:\"\u0027\"+String(v).replaceAll(\"\u0027\",\"\u0027\u0027\")+\"\u0027\"; const j=v=\u003eq(JSON.stringify(v??{}))+\"::jsonb\"; const runId=$(\"Init Collection Run\").first().json.id; const pages=items.map(i=\u003ei.json); const bodies=pages.map(p=\u003ep.body??p); const rows=bodies.flatMap(p=\u003eArray.isArray(p.data)?p.data:[]); const errors=pages.filter(p=\u003eNumber(p.statusCode??200)\u003e=400||Boolean((p.body??p).error)); const last=bodies.at(-1)??{}; const truncated=Boolean(last.paging?.next); const server=errors.some(p=\u003eNumber(p.statusCode??200)\u003e=500); const issueCount=errors.length+(truncated?1:0); const status=server?\u0027ERROR\u0027:issueCount?\u0027WARNING\u0027:\u0027SUCCESS\u0027; const message=server?\u0027Meta API server error\u0027:errors.length?\u0027Meta API returned an error response\u0027:truncated?\u0027Pagination reached the 100-page safety limit\u0027:\u0027null\u0027; const values=rows.map(r=\u003e\"(\"+q(\"act_277127183253232\")+\",\"+q(r.id)+\",\"+q(r.name)+\",\"+q(r.status)+\",\"+q(r.objective)+\",\"+q(r.created_time)+\",\"+q(r.updated_time)+\",\"+j(r)+\",\"+q(runId)+\")\").join(\u0027,\u0027); const insert=values?\"INSERT INTO meta_raw.meta_campaigns(ad_account_id,campaign_id,name,status,objective,created_at,updated_at,raw_payload,collection_run_id) VALUES \"+values+\" ON CONFLICT(ad_account_id,campaign_id) DO UPDATE SET name=EXCLUDED.name,status=EXCLUDED.status,objective=EXCLUDED.objective,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at,raw_payload=EXCLUDED.raw_payload,collection_run_id=EXCLUDED.collection_run_id;\":\u0027\u0027; const log=\"INSERT INTO meta_raw.integration_logs(collection_run_id,workflow_name,endpoint,status,error_message,finished_at) VALUES (\"+q(runId)+\",\"+q(\u0027OWNERINC - META RAW - Ads Structure Sync - C3\u0027)+\",\"+q(\u0027/campaigns\u0027)+\",\"+q(status)+\",\"+q(message)+\",now()); UPDATE meta_raw.collection_runs SET records_received=records_received+\"+rows.length+\",error_count=error_count+\"+issueCount+\",status=CASE WHEN \"+issueCount+\"\u003e0 THEN \u0027PARTIAL\u0027 ELSE status END\"+(server?\",metadata=metadata||jsonb_build_object(\u0027api_error\u0027,true)\":\u0027\u0027)+\" WHERE id=\"+q(runId)+\";\"; return [{json:{query:insert+log}}];"
+                                                      },
+                                       "executeOnce":  true
+                                   },
+                                   {
+                                       "id":  "b9652384-a887-4567-8b11-5e8ec824dd8a",
+                                       "name":  "Upsert Campaigns",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1360,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ $json.query }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "executeOnce":  true
+                                   },
+                                   {
+                                       "id":  "af865f87-045f-4d61-94b8-23c8147cfe55",
+                                       "name":  "Fetch Adsets",
+                                       "type":  "n8n-nodes-base.httpRequest",
+                                       "typeVersion":  4.4,
+                                       "position":  [
+                                                        760,
+                                                        80
+                                                    ],
+                                       "parameters":  {
+                                                          "method":  "GET",
+                                                          "url":  "https://graph.facebook.com/v23.0/act_277127183253232/adsets",
+                                                          "authentication":  "genericCredentialType",
+                                                          "genericAuthType":  "httpHeaderAuth",
+                                                          "sendQuery":  true,
+                                                          "specifyQuery":  "keypair",
+                                                          "queryParameters":  {
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "fields",
+                                                                                                         "value":  "id,campaign{id},name,status,optimization_goal,billing_event,start_time,end_time"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "limit",
+                                                                                                         "value":  "100"
+                                                                                                     }
+                                                                                                 ]
+                                                                              },
+                                                          "options":  {
+                                                                          "pagination":  {
+                                                                                             "pagination":  {
+                                                                                                                "paginationMode":  "updateAParameterInEachRequest",
+                                                                                                                "parameters":  {
+                                                                                                                                   "parameters":  [
+                                                                                                                                                      {
+                                                                                                                                                          "type":  "qs",
+                                                                                                                                                          "name":  "after",
+                                                                                                                                                          "value":  "={{ $response.body.paging?.cursors?.after }}"
+                                                                                                                                                      }
+                                                                                                                                                  ]
+                                                                                                                               },
+                                                                                                                "paginationCompleteWhen":  "other",
+                                                                                                                "completeExpression":  "={{ !$response.body.paging?.next }}",
+                                                                                                                "limitPagesFetched":  true,
+                                                                                                                "maxRequests":  100,
+                                                                                                                "requestInterval":  250
+                                                                                                            }
+                                                                                         }
+                                                                      },
+                                                          "response":  {
+                                                                           "response":  {
+                                                                                            "fullResponse":  true,
+                                                                                            "neverError":  true,
+                                                                                            "responseFormat":  "json"
+                                                                                        }
+                                                                       }
+                                                      },
+                                       "credentials":  {
+                                                           "httpHeaderAuth":  {
+                                                                                  "id":  "MGYzd9IzTNPC8EN2",
+                                                                                  "name":  "OWNERINC - META RAW - META GRAPH API - RUNTIME V1"
+                                                                              }
+                                                       },
+                                       "retryOnFail":  true,
+                                       "maxTries":  3,
+                                       "waitBetweenTries":  1000,
+                                       "onError":  "continueRegularOutput"
+                                   },
+                                   {
+                                       "id":  "92ab810e-0e85-4bcb-9a42-b4f4cfa33b0c",
+                                       "name":  "Normalize Adsets",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1060,
+                                                        80
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const q=v=\u003ev==null||v===\u0027\u0027?\u0027NULL\u0027:\"\u0027\"+String(v).replaceAll(\"\u0027\",\"\u0027\u0027\")+\"\u0027\"; const j=v=\u003eq(JSON.stringify(v??{}))+\"::jsonb\"; const runId=$(\"Init Collection Run\").first().json.id; const pages=items.map(i=\u003ei.json); const bodies=pages.map(p=\u003ep.body??p); const rows=bodies.flatMap(p=\u003eArray.isArray(p.data)?p.data:[]); const errors=pages.filter(p=\u003eNumber(p.statusCode??200)\u003e=400||Boolean((p.body??p).error)); const last=bodies.at(-1)??{}; const truncated=Boolean(last.paging?.next); const server=errors.some(p=\u003eNumber(p.statusCode??200)\u003e=500); const issueCount=errors.length+(truncated?1:0); const status=server?\u0027ERROR\u0027:issueCount?\u0027WARNING\u0027:\u0027SUCCESS\u0027; const message=server?\u0027Meta API server error\u0027:errors.length?\u0027Meta API returned an error response\u0027:truncated?\u0027Pagination reached the 100-page safety limit\u0027:\u0027null\u0027; const values=rows.map(r=\u003e\"(\"+q(\"act_277127183253232\")+\",\"+q(r.id)+\",\"+q(r.campaign?.id)+\",\"+q(r.name)+\",\"+q(r.status)+\",\"+q(r.optimization_goal)+\",\"+q(r.billing_event)+\",\"+q(r.start_time)+\",\"+q(r.end_time)+\",\"+j(r)+\",\"+q(runId)+\")\").join(\u0027,\u0027); const insert=values?\"INSERT INTO meta_raw.meta_adsets(ad_account_id,adset_id,campaign_id,name,status,optimization_goal,billing_event,start_time,end_time,raw_payload,collection_run_id) VALUES \"+values+\" ON CONFLICT(ad_account_id,adset_id) DO UPDATE SET campaign_id=EXCLUDED.campaign_id,name=EXCLUDED.name,status=EXCLUDED.status,optimization_goal=EXCLUDED.optimization_goal,billing_event=EXCLUDED.billing_event,start_time=EXCLUDED.start_time,end_time=EXCLUDED.end_time,raw_payload=EXCLUDED.raw_payload,collection_run_id=EXCLUDED.collection_run_id;\":\u0027\u0027; const log=\"INSERT INTO meta_raw.integration_logs(collection_run_id,workflow_name,endpoint,status,error_message,finished_at) VALUES (\"+q(runId)+\",\"+q(\u0027OWNERINC - META RAW - Ads Structure Sync - C3\u0027)+\",\"+q(\u0027/adsets\u0027)+\",\"+q(status)+\",\"+q(message)+\",now()); UPDATE meta_raw.collection_runs SET records_received=records_received+\"+rows.length+\",error_count=error_count+\"+issueCount+\",status=CASE WHEN \"+issueCount+\"\u003e0 THEN \u0027PARTIAL\u0027 ELSE status END\"+(server?\",metadata=metadata||jsonb_build_object(\u0027api_error\u0027,true)\":\u0027\u0027)+\" WHERE id=\"+q(runId)+\";\"; return [{json:{query:insert+log}}];"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "a848b41c-0740-4271-8a8e-433f6d2972d9",
+                                       "name":  "Upsert Adsets",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1360,
+                                                        80
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ $json.query }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "d4e4e06c-41d4-4a93-b9f5-6b455f6fe31b",
+                                       "name":  "Fetch Ads",
+                                       "type":  "n8n-nodes-base.httpRequest",
+                                       "typeVersion":  4.4,
+                                       "position":  [
+                                                        760,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "method":  "GET",
+                                                          "url":  "https://graph.facebook.com/v23.0/act_277127183253232/ads",
+                                                          "authentication":  "genericCredentialType",
+                                                          "genericAuthType":  "httpHeaderAuth",
+                                                          "sendQuery":  true,
+                                                          "specifyQuery":  "keypair",
+                                                          "queryParameters":  {
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "fields",
+                                                                                                         "value":  "id,adset{id},campaign{id},name,status,creative{id}"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "limit",
+                                                                                                         "value":  "100"
+                                                                                                     }
+                                                                                                 ]
+                                                                              },
+                                                          "options":  {
+                                                                          "pagination":  {
+                                                                                             "pagination":  {
+                                                                                                                "paginationMode":  "updateAParameterInEachRequest",
+                                                                                                                "parameters":  {
+                                                                                                                                   "parameters":  [
+                                                                                                                                                      {
+                                                                                                                                                          "type":  "qs",
+                                                                                                                                                          "name":  "after",
+                                                                                                                                                          "value":  "={{ $response.body.paging?.cursors?.after }}"
+                                                                                                                                                      }
+                                                                                                                                                  ]
+                                                                                                                               },
+                                                                                                                "paginationCompleteWhen":  "other",
+                                                                                                                "completeExpression":  "={{ !$response.body.paging?.next }}",
+                                                                                                                "limitPagesFetched":  true,
+                                                                                                                "maxRequests":  100,
+                                                                                                                "requestInterval":  250
+                                                                                                            }
+                                                                                         }
+                                                                      },
+                                                          "response":  {
+                                                                           "response":  {
+                                                                                            "fullResponse":  true,
+                                                                                            "neverError":  true,
+                                                                                            "responseFormat":  "json"
+                                                                                        }
+                                                                       }
+                                                      },
+                                       "credentials":  {
+                                                           "httpHeaderAuth":  {
+                                                                                  "id":  "MGYzd9IzTNPC8EN2",
+                                                                                  "name":  "OWNERINC - META RAW - META GRAPH API - RUNTIME V1"
+                                                                              }
+                                                       },
+                                       "retryOnFail":  true,
+                                       "maxTries":  3,
+                                       "waitBetweenTries":  1000,
+                                       "onError":  "continueRegularOutput"
+                                   },
+                                   {
+                                       "id":  "cf0e398d-deb8-4570-af30-48a85644b44a",
+                                       "name":  "Normalize Ads",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1060,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const q=v=\u003ev==null||v===\u0027\u0027?\u0027NULL\u0027:\"\u0027\"+String(v).replaceAll(\"\u0027\",\"\u0027\u0027\")+\"\u0027\"; const j=v=\u003eq(JSON.stringify(v??{}))+\"::jsonb\"; const runId=$(\"Init Collection Run\").first().json.id; const pages=items.map(i=\u003ei.json); const bodies=pages.map(p=\u003ep.body??p); const rows=bodies.flatMap(p=\u003eArray.isArray(p.data)?p.data:[]); const errors=pages.filter(p=\u003eNumber(p.statusCode??200)\u003e=400||Boolean((p.body??p).error)); const last=bodies.at(-1)??{}; const truncated=Boolean(last.paging?.next); const server=errors.some(p=\u003eNumber(p.statusCode??200)\u003e=500); const issueCount=errors.length+(truncated?1:0); const status=server?\u0027ERROR\u0027:issueCount?\u0027WARNING\u0027:\u0027SUCCESS\u0027; const message=server?\u0027Meta API server error\u0027:errors.length?\u0027Meta API returned an error response\u0027:truncated?\u0027Pagination reached the 100-page safety limit\u0027:\u0027null\u0027; const values=rows.map(r=\u003e\"(\"+q(\"act_277127183253232\")+\",\"+q(r.id)+\",\"+q(r.adset?.id)+\",\"+q(r.campaign?.id)+\",\"+q(r.name)+\",\"+q(r.status)+\",\"+q(r.creative?.id)+\",\"+j(r)+\",\"+q(runId)+\")\").join(\u0027,\u0027); const insert=values?\"INSERT INTO meta_raw.meta_ads(ad_account_id,ad_id,adset_id,campaign_id,name,status,creative_id,raw_payload,collection_run_id) VALUES \"+values+\" ON CONFLICT(ad_account_id,ad_id) DO UPDATE SET adset_id=EXCLUDED.adset_id,campaign_id=EXCLUDED.campaign_id,name=EXCLUDED.name,status=EXCLUDED.status,creative_id=EXCLUDED.creative_id,raw_payload=EXCLUDED.raw_payload,collection_run_id=EXCLUDED.collection_run_id;\":\u0027\u0027; const log=\"INSERT INTO meta_raw.integration_logs(collection_run_id,workflow_name,endpoint,status,error_message,finished_at) VALUES (\"+q(runId)+\",\"+q(\u0027OWNERINC - META RAW - Ads Structure Sync - C3\u0027)+\",\"+q(\u0027/ads\u0027)+\",\"+q(status)+\",\"+q(message)+\",now()); UPDATE meta_raw.collection_runs SET records_received=records_received+\"+rows.length+\",error_count=error_count+\"+issueCount+\",status=CASE WHEN \"+issueCount+\"\u003e0 THEN \u0027PARTIAL\u0027 ELSE status END\"+(server?\",metadata=metadata||jsonb_build_object(\u0027api_error\u0027,true)\":\u0027\u0027)+\" WHERE id=\"+q(runId)+\";\"; return [{json:{query:insert+log}}];"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "294240dd-599a-4346-8f62-1cb2760c6491",
+                                       "name":  "Upsert Ads",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1360,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ $json.query }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "99c41d93-6a0f-40f0-b73b-a518f46df251",
+                                       "name":  "Fetch Creatives",
+                                       "type":  "n8n-nodes-base.httpRequest",
+                                       "typeVersion":  4.4,
+                                       "position":  [
+                                                        760,
+                                                        520
+                                                    ],
+                                       "parameters":  {
+                                                          "method":  "GET",
+                                                          "url":  "https://graph.facebook.com/v23.0/act_277127183253232/adcreatives",
+                                                          "authentication":  "genericCredentialType",
+                                                          "genericAuthType":  "httpHeaderAuth",
+                                                          "sendQuery":  true,
+                                                          "specifyQuery":  "keypair",
+                                                          "queryParameters":  {
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "fields",
+                                                                                                         "value":  "id,object_story_id,effective_object_story_id,instagram_actor_id,instagram_permalink_url,object_type"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "limit",
+                                                                                                         "value":  "100"
+                                                                                                     }
+                                                                                                 ]
+                                                                              },
+                                                          "options":  {
+                                                                          "pagination":  {
+                                                                                             "pagination":  {
+                                                                                                                "paginationMode":  "updateAParameterInEachRequest",
+                                                                                                                "parameters":  {
+                                                                                                                                   "parameters":  [
+                                                                                                                                                      {
+                                                                                                                                                          "type":  "qs",
+                                                                                                                                                          "name":  "after",
+                                                                                                                                                          "value":  "={{ $response.body.paging?.cursors?.after }}"
+                                                                                                                                                      }
+                                                                                                                                                  ]
+                                                                                                                               },
+                                                                                                                "paginationCompleteWhen":  "other",
+                                                                                                                "completeExpression":  "={{ !$response.body.paging?.next }}",
+                                                                                                                "limitPagesFetched":  true,
+                                                                                                                "maxRequests":  100,
+                                                                                                                "requestInterval":  250
+                                                                                                            }
+                                                                                         }
+                                                                      },
+                                                          "response":  {
+                                                                           "response":  {
+                                                                                            "fullResponse":  true,
+                                                                                            "neverError":  true,
+                                                                                            "responseFormat":  "json"
+                                                                                        }
+                                                                       }
+                                                      },
+                                       "credentials":  {
+                                                           "httpHeaderAuth":  {
+                                                                                  "id":  "MGYzd9IzTNPC8EN2",
+                                                                                  "name":  "OWNERINC - META RAW - META GRAPH API - RUNTIME V1"
+                                                                              }
+                                                       },
+                                       "retryOnFail":  true,
+                                       "maxTries":  3,
+                                       "waitBetweenTries":  1000,
+                                       "onError":  "continueRegularOutput"
+                                   },
+                                   {
+                                       "id":  "ac663c98-1970-40af-b69c-4cb4be924613",
+                                       "name":  "Normalize Creatives",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1060,
+                                                        520
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const q=v=\u003ev==null||v===\u0027\u0027?\u0027NULL\u0027:\"\u0027\"+String(v).replaceAll(\"\u0027\",\"\u0027\u0027\")+\"\u0027\"; const j=v=\u003eq(JSON.stringify(v??{}))+\"::jsonb\"; const runId=$(\"Init Collection Run\").first().json.id; const pages=items.map(i=\u003ei.json); const bodies=pages.map(p=\u003ep.body??p); const rows=bodies.flatMap(p=\u003eArray.isArray(p.data)?p.data:[]); const errors=pages.filter(p=\u003eNumber(p.statusCode??200)\u003e=400||Boolean((p.body??p).error)); const last=bodies.at(-1)??{}; const truncated=Boolean(last.paging?.next); const server=errors.some(p=\u003eNumber(p.statusCode??200)\u003e=500); const issueCount=errors.length+(truncated?1:0); const status=server?\u0027ERROR\u0027:issueCount?\u0027WARNING\u0027:\u0027SUCCESS\u0027; const message=server?\u0027Meta API server error\u0027:errors.length?\u0027Meta API returned an error response\u0027:truncated?\u0027Pagination reached the 100-page safety limit\u0027:\u0027null\u0027; const values=rows.map(r=\u003e\"(\"+q(\"act_277127183253232\")+\",\"+q(r.id)+\",\"+q(r.object_story_id)+\",\"+q(r.effective_object_story_id)+\",\"+q(r.instagram_media_id)+\",\"+q(r.instagram_permalink_url)+\",\"+q(r.object_type)+\",\"+j(r)+\",\"+q(runId)+\")\").join(\u0027,\u0027); const insert=values?\"INSERT INTO meta_raw.meta_creatives(ad_account_id,creative_id,object_story_id,effective_object_story_id,instagram_media_id,instagram_permalink,creative_type,raw_payload,collection_run_id) VALUES \"+values+\" ON CONFLICT(ad_account_id,creative_id) DO UPDATE SET object_story_id=EXCLUDED.object_story_id,effective_object_story_id=EXCLUDED.effective_object_story_id,instagram_media_id=EXCLUDED.instagram_media_id,instagram_permalink=EXCLUDED.instagram_permalink,creative_type=EXCLUDED.creative_type,raw_payload=EXCLUDED.raw_payload,collection_run_id=EXCLUDED.collection_run_id;\":\u0027\u0027; const log=\"INSERT INTO meta_raw.integration_logs(collection_run_id,workflow_name,endpoint,status,error_message,finished_at) VALUES (\"+q(runId)+\",\"+q(\u0027OWNERINC - META RAW - Ads Structure Sync - C3\u0027)+\",\"+q(\u0027/adcreatives\u0027)+\",\"+q(status)+\",\"+q(message)+\",now()); UPDATE meta_raw.collection_runs SET records_received=records_received+\"+rows.length+\",error_count=error_count+\"+issueCount+\",status=CASE WHEN \"+issueCount+\"\u003e0 THEN \u0027PARTIAL\u0027 ELSE status END\"+(server?\",metadata=metadata||jsonb_build_object(\u0027api_error\u0027,true)\":\u0027\u0027)+\" WHERE id=\"+q(runId)+\";\"; return [{json:{query:insert+log}}];"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "a6b87d13-a49f-4ae4-8ba7-d323240eb960",
+                                       "name":  "Upsert Creatives",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1360,
+                                                        520
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ $json.query }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "f68c622c-6cf6-46bb-9485-42e8a786772c",
+                                       "name":  "Finalize Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1660,
+                                                        520
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ \"UPDATE meta_raw.collection_runs SET status=CASE WHEN metadata-\u003e\u003e\u0027api_error\u0027=\u0027true\u0027 THEN \u0027FAILED\u0027 WHEN error_count\u003e0 THEN \u0027PARTIAL\u0027 ELSE \u0027SUCCEEDED\u0027 END,finished_at=now() WHERE id=\u0027\" + $(\u0027Init Collection Run\u0027).first().json.id + \"\u0027::uuid RETURNING id,status;\" }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "07383c01-fbc1-4ae6-b9b7-736d70bacfef",
+                                       "name":  "Log Fetch Campaigns",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1060,
+                                                        900
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ \"INSERT INTO meta_raw.integration_logs(collection_run_id,workflow_name,endpoint,status,error_message,finished_at) VALUES (\u0027\" + $(\u0027Init Collection Run\u0027).first().json.id + \"\u0027::uuid,\u0027OWNERINC - META RAW - Ads Structure Sync - C3\u0027,\u0027\" + $node[\"Fetch Campaigns\"].parameter.url + \"\u0027,CASE WHEN $json.body?.error IS NULL THEN \u0027SUCCESS\u0027 ELSE \u0027ERROR\u0027 END,\u0027\" + JSON.stringify($json.body?.error ?? null).replaceAll(\"\u0027\",\"\u0027\u0027\") + \"\u0027,now());\" }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "disabled":  true
+                                   },
+                                   {
+                                       "id":  "af700424-799c-4428-8f06-ed97ae59b179",
+                                       "name":  "Log Fetch Adsets",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1060,
+                                                        1020
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ \"INSERT INTO meta_raw.integration_logs(collection_run_id,workflow_name,endpoint,status,error_message,finished_at) VALUES (\u0027\" + $(\u0027Init Collection Run\u0027).first().json.id + \"\u0027::uuid,\u0027OWNERINC - META RAW - Ads Structure Sync - C3\u0027,\u0027\" + $node[\"Fetch Adsets\"].parameter.url + \"\u0027,CASE WHEN $json.body?.error IS NULL THEN \u0027SUCCESS\u0027 ELSE \u0027ERROR\u0027 END,\u0027\" + JSON.stringify($json.body?.error ?? null).replaceAll(\"\u0027\",\"\u0027\u0027\") + \"\u0027,now());\" }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "disabled":  true
+                                   },
+                                   {
+                                       "id":  "6f3089e2-d70b-44b1-9080-9e02f92b2438",
+                                       "name":  "Log Fetch Ads",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1060,
+                                                        1140
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ \"INSERT INTO meta_raw.integration_logs(collection_run_id,workflow_name,endpoint,status,error_message,finished_at) VALUES (\u0027\" + $(\u0027Init Collection Run\u0027).first().json.id + \"\u0027::uuid,\u0027OWNERINC - META RAW - Ads Structure Sync - C3\u0027,\u0027\" + $node[\"Fetch Ads\"].parameter.url + \"\u0027,CASE WHEN $json.body?.error IS NULL THEN \u0027SUCCESS\u0027 ELSE \u0027ERROR\u0027 END,\u0027\" + JSON.stringify($json.body?.error ?? null).replaceAll(\"\u0027\",\"\u0027\u0027\") + \"\u0027,now());\" }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "disabled":  true
+                                   },
+                                   {
+                                       "id":  "9c6cf18d-6a2e-4e56-8e35-0593ff196ed3",
+                                       "name":  "Log Fetch Creatives",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1060,
+                                                        1260
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ \"INSERT INTO meta_raw.integration_logs(collection_run_id,workflow_name,endpoint,status,error_message,finished_at) VALUES (\u0027\" + $(\u0027Init Collection Run\u0027).first().json.id + \"\u0027::uuid,\u0027OWNERINC - META RAW - Ads Structure Sync - C3\u0027,\u0027\" + $node[\"Fetch Creatives\"].parameter.url + \"\u0027,CASE WHEN $json.body?.error IS NULL THEN \u0027SUCCESS\u0027 ELSE \u0027ERROR\u0027 END,\u0027\" + JSON.stringify($json.body?.error ?? null).replaceAll(\"\u0027\",\"\u0027\u0027\") + \"\u0027,now());\" }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "disabled":  true
+                                   }
+                               ],
+                     "connections":  {
+                                         "Manual Trigger":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Init Collection Run",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                                         "Init Collection Run":  {
+                                                                     "main":  [
+                                                                                  [
+                                                                                      {
+                                                                                          "node":  "Fetch Campaigns",
+                                                                                          "type":  "main",
+                                                                                          "index":  0
+                                                                                      }
+                                                                                  ]
+                                                                              ]
+                                                                 },
+                                         "Fetch Campaigns":  {
+                                                                 "main":  [
+                                                                              [
+                                                                                  {
+                                                                                      "node":  "Normalize Campaigns",
+                                                                                      "type":  "main",
+                                                                                      "index":  0
+                                                                                  },
+                                                                                  {
+                                                                                      "node":  "Log Fetch Campaigns",
+                                                                                      "type":  "main",
+                                                                                      "index":  0
+                                                                                  }
+                                                                              ]
+                                                                          ]
+                                                             },
+                                         "Normalize Campaigns":  {
+                                                                     "main":  [
+                                                                                  [
+                                                                                      {
+                                                                                          "node":  "Upsert Campaigns",
+                                                                                          "type":  "main",
+                                                                                          "index":  0
+                                                                                      }
+                                                                                  ]
+                                                                              ]
+                                                                 },
+                                         "Upsert Campaigns":  {
+                                                                  "main":  [
+                                                                               [
+                                                                                   {
+                                                                                       "node":  "Fetch Adsets",
+                                                                                       "type":  "main",
+                                                                                       "index":  0
+                                                                                   }
+                                                                               ]
+                                                                           ]
+                                                              },
+                                         "Fetch Adsets":  {
+                                                              "main":  [
+                                                                           [
+                                                                               {
+                                                                                   "node":  "Normalize Adsets",
+                                                                                   "type":  "main",
+                                                                                   "index":  0
+                                                                               },
+                                                                               {
+                                                                                   "node":  "Log Fetch Adsets",
+                                                                                   "type":  "main",
+                                                                                   "index":  0
+                                                                               }
+                                                                           ]
+                                                                       ]
+                                                          },
+                                         "Normalize Adsets":  {
+                                                                  "main":  [
+                                                                               [
+                                                                                   {
+                                                                                       "node":  "Upsert Adsets",
+                                                                                       "type":  "main",
+                                                                                       "index":  0
+                                                                                   }
+                                                                               ]
+                                                                           ]
+                                                              },
+                                         "Upsert Adsets":  {
+                                                               "main":  [
+                                                                            [
+                                                                                {
+                                                                                    "node":  "Fetch Ads",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ]
+                                                                        ]
+                                                           },
+                                         "Fetch Ads":  {
+                                                           "main":  [
+                                                                        [
+                                                                            {
+                                                                                "node":  "Normalize Ads",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            },
+                                                                            {
+                                                                                "node":  "Log Fetch Ads",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ]
+                                                                    ]
+                                                       },
+                                         "Normalize Ads":  {
+                                                               "main":  [
+                                                                            [
+                                                                                {
+                                                                                    "node":  "Upsert Ads",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ]
+                                                                        ]
+                                                           },
+                                         "Upsert Ads":  {
+                                                            "main":  [
+                                                                         [
+                                                                             {
+                                                                                 "node":  "Fetch Creatives",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ]
+                                                                     ]
+                                                        },
+                                         "Fetch Creatives":  {
+                                                                 "main":  [
+                                                                              [
+                                                                                  {
+                                                                                      "node":  "Normalize Creatives",
+                                                                                      "type":  "main",
+                                                                                      "index":  0
+                                                                                  },
+                                                                                  {
+                                                                                      "node":  "Log Fetch Creatives",
+                                                                                      "type":  "main",
+                                                                                      "index":  0
+                                                                                  }
+                                                                              ]
+                                                                          ]
+                                                             },
+                                         "Normalize Creatives":  {
+                                                                     "main":  [
+                                                                                  [
+                                                                                      {
+                                                                                          "node":  "Upsert Creatives",
+                                                                                          "type":  "main",
+                                                                                          "index":  0
+                                                                                      }
+                                                                                  ]
+                                                                              ]
+                                                                 },
+                                         "Upsert Creatives":  {
+                                                                  "main":  [
+                                                                               [
+                                                                                   {
+                                                                                       "node":  "Finalize Collection Run",
+                                                                                       "type":  "main",
+                                                                                       "index":  0
+                                                                                   }
+                                                                               ]
+                                                                           ]
+                                                              }
+                                     },
+                     "settings":  {
+                                      "executionOrder":  "v1",
+                                      "availableInMCP":  true
+                                  },
+                     "meta":  {
+                                  "aiBuilderAssisted":  true,
+                                  "builderVariant":  "mcp"
+                              },
+                     "nodeGroups":  [
+
+                                    ],
+                     "description":  "Manual inactive Meta Ads structure sync draft for the dedicated meta_raw schema."
+                 }
+}

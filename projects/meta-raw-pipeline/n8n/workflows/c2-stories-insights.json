@@ -1,0 +1,384 @@
+{
+    "exportedAt":  "2026-10-06T13:35:26.9223061Z",
+    "source":  "https://n8n.ownerinc.com.br",
+    "workflow":  {
+                     "id":  "NJ3gwPPWyUMAQTPM",
+                     "name":  "OWNERINC - META RAW - Stories Insights - C2",
+                     "active":  false,
+                     "activeVersionId":  null,
+                     "versionId":  "50d0aab9-1e63-4ae0-a46d-5e780b687819",
+                     "nodes":  [
+                                   {
+                                       "id":  "388fd22a-7062-4944-89b9-3e512c59e901",
+                                       "name":  "Manual Trigger",
+                                       "type":  "n8n-nodes-base.manualTrigger",
+                                       "typeVersion":  1,
+                                       "position":  [
+                                                        240,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+
+                                                      }
+                                   },
+                                   {
+                                       "id":  "11f30e51-0676-416b-ba26-3a91c03cc180",
+                                       "name":  "Start Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        520,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "INSERT INTO meta_raw.collection_runs (workflow_name, source, status, metadata) VALUES (\u0027OWNERINC - META RAW - Stories Insights - C2\u0027, \u0027instagram_graph:/story/insights\u0027, \u0027RUNNING\u0027, \u0027{\"api_version\":\"v23.0\",\"scope\":\"story_insights\"}\u0027::jsonb) RETURNING id;",
+                                                          "parameters":  {
+                                                                             "query":  "INSERT INTO meta_raw.collection_runs (workflow_name, source, status, metadata) VALUES (\u0027OWNERINC - META RAW - Stories Insights - C2\u0027,\u0027instagram_graph:/story/insights\u0027,\u0027RUNNING\u0027,\u0027{\"api_version\":\"v23.0\",\"scope\":\"story_insights\"}\u0027::jsonb) RETURNING id;"
+                                                                         }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "8997a9c9-5a0f-4037-a8ef-697a531d15f9",
+                                       "name":  "Load Consultable Stories",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        800,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "SELECT account_id, story_id FROM meta_raw.instagram_stories WHERE account_id=\u002717841449595671459\u0027 AND (expires_at IS NULL OR expires_at \u003e= now() - interval \u002724 hours\u0027);"
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "adcac882-c222-4c25-902e-52e686b58e84",
+                                       "name":  "Fetch Story Insights",
+                                       "type":  "n8n-nodes-base.httpRequest",
+                                       "typeVersion":  4.4,
+                                       "position":  [
+                                                        1080,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "method":  "GET",
+                                                          "url":  "=https://graph.facebook.com/v23.0/{{ $json.story_id }}/insights",
+                                                          "authentication":  "genericCredentialType",
+                                                          "genericAuthType":  "httpHeaderAuth",
+                                                          "sendQuery":  true,
+                                                          "specifyQuery":  "keypair",
+                                                          "queryParameters":  {
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "metric",
+                                                                                                         "value":  "reach,replies,navigation"
+                                                                                                     }
+                                                                                                 ]
+                                                                              },
+                                                          "response":  {
+                                                                           "response":  {
+                                                                                            "fullResponse":  true,
+                                                                                            "neverError":  true,
+                                                                                            "responseFormat":  "json"
+                                                                                        }
+                                                                       }
+                                                      },
+                                       "credentials":  {
+                                                           "httpHeaderAuth":  {
+                                                                                  "id":  "MGYzd9IzTNPC8EN2",
+                                                                                  "name":  "OWNERINC - META RAW - META GRAPH API - RUNTIME V1"
+                                                                              }
+                                                       },
+                                       "retryOnFail":  true,
+                                       "maxTries":  3,
+                                       "waitBetweenTries":  1000,
+                                       "onError":  "continueRegularOutput"
+                                   },
+                                   {
+                                       "id":  "275a4d9d-11de-4ab2-89c1-2d71d68ce8e6",
+                                       "name":  "Represent Story Metric Status",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1360,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const runId = $(\u0027Start Collection Run\u0027).first().json.id;\nconst consultableStories = $(\u0027Load Consultable Stories\u0027).all().map((item) =\u003e item.json ?? {});\nconst lit = (value) =\u003e value === null || value === undefined ? \u0027NULL\u0027 : \"\u0027\" + String(value).replaceAll(\"\u0027\", \"\u0027\u0027\") + \"\u0027\";\nconst json = (value) =\u003e lit(JSON.stringify(value ?? {})) + \u0027::jsonb\u0027;\nconst toFiniteNumber = (value) =\u003e {\n  if (value === null || value === undefined || value === \u0027\u0027) return null;\n  const number = Number(value);\n  return Number.isFinite(number) ? number : null;\n};\nconst metricNames = [\u0027reach\u0027,\u0027replies\u0027,\u0027navigation\u0027];\nconst out = [];\nfor (const [index, item] of items.entries()) {\n  const story = item.json ?? {};\n  const sourceStory = consultableStories[index] ?? {};\n  const storyId = story.story_id ?? sourceStory.story_id;\n  if (!storyId) continue;\n  const response = story.body ?? story;\n  const payload = response.body ?? response;\n  const errorText = JSON.stringify(payload?.error ?? payload?.errors ?? \u0027\u0027);\n  const unavailable = /insufficient|viewer|privacy/i.test(errorText) ? \u0027INSUFFICIENT_VIEWERS\u0027 : \u0027UNAVAILABLE\u0027;\n  const found = Array.isArray(payload?.data) ? payload.data : [];\n  const byName = new Map(found.map((metric) =\u003e [metric.name, metric]));\n  for (const name of metricNames) {\n    const metric = byName.get(name);\n    const status = metric ? \u0027AVAILABLE\u0027 : unavailable;\n    const value = toFiniteNumber(metric?.values?.[0]?.value ?? metric?.value);\n    out.push({ json: { sql: \"INSERT INTO meta_raw.instagram_story_metrics (account_id, story_id, metric_name, metric_value_numeric, metric_status, observed_at, raw_payload, collection_run_id) VALUES (\" + lit(\u002717841449595671459\u0027) + \",\" + lit(storyId) + \",\" + lit(name) + \",\" + (value === null ? \u0027NULL\u0027 : String(value)) + \",\" + lit(status) + \",now(),\" + json(payload) + \",\" + lit(runId) + \") ON CONFLICT (account_id, story_id, metric_name, observed_at) DO UPDATE SET metric_value_numeric=EXCLUDED.metric_value_numeric, metric_status=EXCLUDED.metric_status, raw_payload=EXCLUDED.raw_payload, collection_run_id=EXCLUDED.collection_run_id RETURNING story_id, metric_name, metric_status;\" } });\n  }\n}\nif (!out.length) out.push({ json: { sql: \u0027SELECT 0 AS story_metrics_written;\u0027 } });\nreturn out;"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "32a5c4d8-9005-48e7-b8b0-a5bd725ee26c",
+                                       "name":  "Write Story Metric Snapshot",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1640,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ $json.sql }}"
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "a6b34e6a-2384-4617-907c-4bed240a10e9",
+                                       "name":  "Finish Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1920,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ \"UPDATE meta_raw.collection_runs SET finished_at=now(),status=CASE WHEN \" + Boolean($(\u0027Assess Story Insights Outcome\u0027).isExecuted \u0026\u0026 $(\u0027Assess Story Insights Outcome\u0027).first().json._api_error) + \" THEN \u0027FAILED\u0027 WHEN \" + Boolean($(\u0027Assess Story Insights Outcome\u0027).isExecuted \u0026\u0026 $(\u0027Assess Story Insights Outcome\u0027).first().json._api_warning) + \" THEN \u0027PARTIAL\u0027 ELSE \u0027SUCCEEDED\u0027 END,records_received=(SELECT count(*) FROM meta_raw.instagram_story_metrics WHERE collection_run_id=\u0027\" + $(\u0027Start Collection Run\u0027).first().json.id + \"\u0027::uuid) WHERE id=\u0027\" + $(\u0027Start Collection Run\u0027).first().json.id + \"\u0027::uuid RETURNING id,status;\" }}",
+                                                          "parameters":  {
+                                                                             "query":  "={{ \"UPDATE meta_raw.collection_runs SET finished_at=now(),status=CASE WHEN \" + Boolean($(\u0027Assess Story Insights Outcome\u0027).isExecuted \u0026\u0026 $(\u0027Assess Story Insights Outcome\u0027).first().json._api_error) + \" THEN \u0027FAILED\u0027 WHEN \" + Boolean($(\u0027Assess Story Insights Outcome\u0027).isExecuted \u0026\u0026 $(\u0027Assess Story Insights Outcome\u0027).first().json._api_warning) + \" THEN \u0027PARTIAL\u0027 ELSE \u0027SUCCEEDED\u0027 END,records_received=(SELECT count(*) FROM meta_raw.instagram_story_metrics WHERE collection_run_id=\u0027\" + $(\u0027Start Collection Run\u0027).first().json.id + \"\u0027::uuid) WHERE id=\u0027\" + $(\u0027Start Collection Run\u0027).first().json.id + \"\u0027::uuid RETURNING id,status;\" }}"
+                                                                         }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "executeOnce":  true
+                                   },
+                                   {
+                                       "id":  "7c02903a-4373-4f93-a70a-bcafbb09ab18",
+                                       "name":  "Assess Story Insights Outcome",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1320,
+                                                        520
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const pages=$input.all(); const toStatusCode=(value)=\u003e{if(value===null||value===undefined||value===\u0027\u0027)return null; const code=Number(value); return Number.isInteger(code)\u0026\u0026code\u003e=100\u0026\u0026code\u003c=599?code:null;}; const responseStatus=(page)=\u003etoStatusCode(page?.statusCode??page?.httpCode??page?.error?.httpCode); const last=pages.at(-1)?.json??{}; const body=last.body??last; const statusCode=responseStatus(last); const apiError=pages.some(i=\u003e{const page=i.json??{}; const code=responseStatus(page); return code!==null\u0026\u0026code\u003e=500;}); const apiWarning=pages.some(i=\u003e{const page=i.json??{}; const code=responseStatus(page); return (code!==null\u0026\u0026code\u003e=400)||Boolean((page.body??page)?.error)||Boolean(page.error);}); const paginationComplete=!body.paging?.next; return pages.map(item=\u003e({json:{...item.json,_pagination_complete:paginationComplete,_api_error:apiError,_api_warning:apiWarning,_status_code:statusCode}}));"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "aaa39101-cbcf-4edd-ba12-4044aaa3323a",
+                                       "name":  "Log Story Insights Warning or Error",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1600,
+                                                        520
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "=INSERT INTO meta_raw.integration_logs (collection_run_id, workflow_name, endpoint, status, http_status, error_code, error_message, finished_at) SELECT \u0027{{ $(\u0027Start Collection Run\u0027).first().json.id }}\u0027,\u0027OWNERINC - META RAW - Stories Insights - C2\u0027,\u0027/story/insights\u0027,CASE WHEN {{ $(\u0027Assess Story Insights Outcome\u0027).first().json._api_error }} THEN \u0027ERROR\u0027 ELSE \u0027WARNING\u0027 END,{{ $(\u0027Assess Story Insights Outcome\u0027).first().json._status_code }},CASE WHEN {{ $(\u0027Assess Story Insights Outcome\u0027).first().json._api_error }} THEN \u0027STORY_INSIGHTS_SERVER_ERROR\u0027 ELSE \u0027STORY_INSIGHTS_UNAVAILABLE_OR_UNSUPPORTED\u0027 END,CASE WHEN {{ $(\u0027Assess Story Insights Outcome\u0027).first().json._api_error }} THEN \u0027Stories Insights API returned a server error\u0027 ELSE \u0027One or more story metrics were unavailable or unsupported\u0027 END,now() WHERE {{ $(\u0027Assess Story Insights Outcome\u0027).first().json._api_warning }};"
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "onError":  "continueRegularOutput",
+                                       "executeOnce":  true
+                                   },
+                                   {
+                                       "id":  "d28ee99c-417c-482b-b124-f85aef6c3747",
+                                       "name":  "Prepare Story Insight Inputs",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1040,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const rows=$input.all(); return rows.length ? rows : [{json:{_no_stories:true}}];"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "2e172eff-823b-4a66-ae29-0d3564cbf9a0",
+                                       "name":  "Has Consultable Stories?",
+                                       "type":  "n8n-nodes-base.if",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1260,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "conditions":  {
+                                                                             "combinator":  "and",
+                                                                             "options":  {
+                                                                                             "caseSensitive":  true,
+                                                                                             "leftValue":  "",
+                                                                                             "typeValidation":  "strict",
+                                                                                             "version":  2
+                                                                                         },
+                                                                             "conditions":  [
+                                                                                                {
+                                                                                                    "leftValue":  "={{ $json._no_stories !== true }}",
+                                                                                                    "rightValue":  true,
+                                                                                                    "operator":  {
+                                                                                                                     "type":  "boolean",
+                                                                                                                     "operation":  "true"
+                                                                                                                 }
+                                                                                                }
+                                                                                            ]
+                                                                         }
+                                                      }
+                                   }
+                               ],
+                     "connections":  {
+                                         "Manual Trigger":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Start Collection Run",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                                         "Start Collection Run":  {
+                                                                      "main":  [
+                                                                                   [
+                                                                                       {
+                                                                                           "node":  "Load Consultable Stories",
+                                                                                           "type":  "main",
+                                                                                           "index":  0
+                                                                                       }
+                                                                                   ]
+                                                                               ]
+                                                                  },
+                                         "Fetch Story Insights":  {
+                                                                      "main":  [
+                                                                                   [
+                                                                                       {
+                                                                                           "node":  "Assess Story Insights Outcome",
+                                                                                           "type":  "main",
+                                                                                           "index":  0
+                                                                                       }
+                                                                                   ]
+                                                                               ]
+                                                                  },
+                                         "Represent Story Metric Status":  {
+                                                                               "main":  [
+                                                                                            [
+                                                                                                {
+                                                                                                    "node":  "Write Story Metric Snapshot",
+                                                                                                    "type":  "main",
+                                                                                                    "index":  0
+                                                                                                }
+                                                                                            ]
+                                                                                        ]
+                                                                           },
+                                         "Write Story Metric Snapshot":  {
+                                                                             "main":  [
+                                                                                          [
+                                                                                              {
+                                                                                                  "node":  "Finish Collection Run",
+                                                                                                  "type":  "main",
+                                                                                                  "index":  0
+                                                                                              }
+                                                                                          ]
+                                                                                      ]
+                                                                         },
+                                         "Assess Story Insights Outcome":  {
+                                                                               "main":  [
+                                                                                            [
+                                                                                                {
+                                                                                                    "node":  "Represent Story Metric Status",
+                                                                                                    "type":  "main",
+                                                                                                    "index":  0
+                                                                                                },
+                                                                                                {
+                                                                                                    "node":  "Log Story Insights Warning or Error",
+                                                                                                    "type":  "main",
+                                                                                                    "index":  0
+                                                                                                }
+                                                                                            ]
+                                                                                        ]
+                                                                           },
+                                         "Load Consultable Stories":  {
+                                                                          "main":  [
+                                                                                       [
+                                                                                           {
+                                                                                               "node":  "Prepare Story Insight Inputs",
+                                                                                               "type":  "main",
+                                                                                               "index":  0
+                                                                                           }
+                                                                                       ]
+                                                                                   ]
+                                                                      },
+                                         "Prepare Story Insight Inputs":  {
+                                                                              "main":  [
+                                                                                           [
+                                                                                               {
+                                                                                                   "node":  "Has Consultable Stories?",
+                                                                                                   "type":  "main",
+                                                                                                   "index":  0
+                                                                                               }
+                                                                                           ]
+                                                                                       ]
+                                                                          },
+                                         "Has Consultable Stories?":  {
+                                                                          "main":  [
+                                                                                       [
+                                                                                           {
+                                                                                               "node":  "Fetch Story Insights",
+                                                                                               "type":  "main",
+                                                                                               "index":  0
+                                                                                           }
+                                                                                       ],
+                                                                                       [
+                                                                                           {
+                                                                                               "node":  "Finish Collection Run",
+                                                                                               "type":  "main",
+                                                                                               "index":  0
+                                                                                           }
+                                                                                       ]
+                                                                                   ]
+                                                                      }
+                                     },
+                     "settings":  {
+                                      "executionOrder":  "v1",
+                                      "availableInMCP":  true
+                                  },
+                     "meta":  {
+                                  "aiBuilderAssisted":  true,
+                                  "builderVariant":  "mcp"
+                              },
+                     "nodeGroups":  [
+
+                                    ],
+                     "description":  "Manual story metric snapshots with explicit unavailable and insufficient-viewers statuses using only meta_raw."
+                 }
+}

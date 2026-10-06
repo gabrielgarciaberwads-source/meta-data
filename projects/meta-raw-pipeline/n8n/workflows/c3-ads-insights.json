@@ -1,0 +1,344 @@
+{
+    "exportedAt":  "2026-10-06T13:35:27.4755695Z",
+    "source":  "https://n8n.ownerinc.com.br",
+    "workflow":  {
+                     "id":  "lOJbgByhiMzdOTNq",
+                     "name":  "OWNERINC - META RAW - Ads Insights - C3",
+                     "active":  false,
+                     "activeVersionId":  null,
+                     "versionId":  "bb9a0b72-e842-4db6-9c13-ce67463c931c",
+                     "nodes":  [
+                                   {
+                                       "id":  "7a33b625-55a4-47a4-ae92-9c1c75cee8b7",
+                                       "name":  "Manual Trigger",
+                                       "type":  "n8n-nodes-base.manualTrigger",
+                                       "typeVersion":  1,
+                                       "position":  [
+                                                        180,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+
+                                                      }
+                                   },
+                                   {
+                                       "id":  "c421ef8e-66ee-4e4c-8068-eca913e67b20",
+                                       "name":  "Init Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        460,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ \"WITH inserted AS (INSERT INTO meta_raw.collection_runs(workflow_name,source,status,period_start,period_end,metadata) VALUES (\u0027OWNERINC - META RAW - Ads Insights - C3\u0027,\u0027meta_ads_insights\u0027,\u0027RUNNING\u0027,\u0027\" + $(\u0027Resolve Closed Window\u0027).first().json.date_start + \"\u0027::date,\u0027\" + $(\u0027Resolve Closed Window\u0027).first().json.date_stop + \"\u0027::date,jsonb_build_object(\u0027account_id\u0027,\u0027act_277127183253232\u0027,\u0027api_version\u0027,\u0027v23.0\u0027,\u0027date_start\u0027,\u0027\" + $(\u0027Resolve Closed Window\u0027).first().json.date_start + \"\u0027,\u0027date_stop\u0027,\u0027\" + $(\u0027Resolve Closed Window\u0027).first().json.date_stop + \"\u0027)) RETURNING id) SELECT id,\u0027\" + $(\u0027Resolve Closed Window\u0027).first().json.date_start + \"\u0027::date AS date_start,\u0027\" + $(\u0027Resolve Closed Window\u0027).first().json.date_stop + \"\u0027::date AS date_stop FROM inserted;\" }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "22046228-4181-45fd-b85e-447a3a0d727e",
+                                       "name":  "Resolve Closed Window",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        760,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const input=items[0]?.json??{}; const now=$now.setZone(\"America/Sao_Paulo\"); const fallback=now.minus({days:1}).toISODate(); const valid=v=\u003etypeof v===\u0027string\u0027\u0026\u0026/^\\d{4}-\\d{2}-\\d{2}$/.test(v); const date_start=valid(input.date_start)?input.date_start:fallback; const date_stop=valid(input.date_stop)?input.date_stop:fallback; if(date_stop\u003cdate_start) throw new Error(\u0027date_stop must be on or after date_start\u0027); return [{json:{date_start,date_stop,account_id:\"act_277127183253232\"}}];"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "b6880fff-8182-4450-a54e-37dd4f985893",
+                                       "name":  "Fetch Ads Insights",
+                                       "type":  "n8n-nodes-base.httpRequest",
+                                       "typeVersion":  4.4,
+                                       "position":  [
+                                                        1060,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "method":  "GET",
+                                                          "url":  "https://graph.facebook.com/v23.0/act_277127183253232/insights",
+                                                          "authentication":  "genericCredentialType",
+                                                          "genericAuthType":  "httpHeaderAuth",
+                                                          "sendQuery":  true,
+                                                          "specifyQuery":  "keypair",
+                                                          "queryParameters":  {
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "level",
+                                                                                                         "value":  "ad"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "breakdowns",
+                                                                                                         "value":  "publisher_platform,platform_position"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "fields",
+                                                                                                         "value":  "date_start,date_stop,campaign_id,adset_id,ad_id,spend,impressions,reach,clicks,inline_link_clicks,actions"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "time_range",
+                                                                                                         "value":  "={{ JSON.stringify({ since: $json.date_start, until: $json.date_stop }) }}"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "limit",
+                                                                                                         "value":  "100"
+                                                                                                     }
+                                                                                                 ]
+                                                                              },
+                                                          "options":  {
+                                                                          "pagination":  {
+                                                                                             "pagination":  {
+                                                                                                                "paginationMode":  "updateAParameterInEachRequest",
+                                                                                                                "parameters":  {
+                                                                                                                                   "parameters":  [
+                                                                                                                                                      {
+                                                                                                                                                          "type":  "qs",
+                                                                                                                                                          "name":  "after",
+                                                                                                                                                          "value":  "={{ $response.body.paging?.cursors?.after }}"
+                                                                                                                                                      }
+                                                                                                                                                  ]
+                                                                                                                               },
+                                                                                                                "paginationCompleteWhen":  "other",
+                                                                                                                "completeExpression":  "={{ !$response.body.paging?.next }}",
+                                                                                                                "limitPagesFetched":  true,
+                                                                                                                "maxRequests":  100,
+                                                                                                                "requestInterval":  250
+                                                                                                            }
+                                                                                         }
+                                                                      },
+                                                          "response":  {
+                                                                           "response":  {
+                                                                                            "fullResponse":  true,
+                                                                                            "neverError":  true,
+                                                                                            "responseFormat":  "json"
+                                                                                        }
+                                                                       }
+                                                      },
+                                       "credentials":  {
+                                                           "httpHeaderAuth":  {
+                                                                                  "id":  "MGYzd9IzTNPC8EN2",
+                                                                                  "name":  "OWNERINC - META RAW - META GRAPH API - RUNTIME V1"
+                                                                              }
+                                                       },
+                                       "retryOnFail":  true,
+                                       "maxTries":  3,
+                                       "waitBetweenTries":  1000,
+                                       "onError":  "continueRegularOutput"
+                                   },
+                                   {
+                                       "id":  "52ed1bc1-702d-4e36-b451-60eedd2201e1",
+                                       "name":  "Normalize Metrics",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1360,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const q=v=\u003ev==null||v===\u0027\u0027?\u0027NULL\u0027:\"\u0027\"+String(v).replaceAll(\"\u0027\",\"\u0027\u0027\")+\"\u0027\"; const j=v=\u003eq(JSON.stringify(v??{}))+\"::jsonb\"; const pages=items.map(i=\u003ei.json); const bodies=pages.map(p=\u003ep.body??p); const rows=bodies.flatMap(p=\u003eArray.isArray(p.data)?p.data:[]); const errors=pages.filter(p=\u003eNumber(p.statusCode??200)\u003e=400||Boolean((p.body??p).error)); const last=bodies.at(-1)??{}; const truncated=Boolean(last.paging?.next); const server=errors.some(p=\u003eNumber(p.statusCode??200)\u003e=500); const issueCount=errors.length+(truncated?1:0); const status=server?\u0027ERROR\u0027:issueCount?\u0027WARNING\u0027:\u0027SUCCESS\u0027; const message=server?\u0027Meta API server error\u0027:errors.length?\u0027Meta API returned an error response\u0027:truncated?\u0027Pagination reached the 100-page safety limit\u0027:\u0027null\u0027; const runId=$(\"Init Collection Run\").first().json.id; const out=[]; for(const r of rows){const base={account_id:\"act_277127183253232\",date_start:r.date_start,date_stop:r.date_stop,campaign_id:r.campaign_id,adset_id:r.adset_id,ad_id:r.ad_id,creative_id:r.creative_id,publisher_platform:r.publisher_platform,platform_position:r.platform_position}; for(const [k,v] of Object.entries(r)){if([\"date_start\",\"date_stop\",\"campaign_id\",\"adset_id\",\"ad_id\",\"creative_id\",\"publisher_platform\",\"platform_position\",\"actions\"].includes(k))continue; if(typeof v===\u0027number\u0027)out.push({...base,metric_name:k,metric_value_numeric:v,raw_payload:r});} for(const a of (r.actions||[]))out.push({...base,metric_name:a.action_type,metric_value_numeric:Number(a.value),raw_payload:r});} const values=out.map(x=\u003e\"(\"+q(x.account_id)+\",\"+q(x.date_start)+\",\"+q(x.date_stop)+\",\"+q(x.campaign_id)+\",\"+q(x.adset_id)+\",\"+q(x.ad_id)+\",\"+q(x.creative_id)+\",\"+q(x.publisher_platform)+\",\"+q(x.platform_position)+\",\"+q(x.metric_name)+\",\"+q(x.metric_value_numeric)+\",\"+j(x.raw_payload)+\",\"+q(runId)+\")\").join(\u0027,\u0027); const insert=values?\"INSERT INTO meta_raw.meta_paid_metrics(ad_account_id,date_start,date_stop,campaign_id,adset_id,ad_id,creative_id,publisher_platform,platform_position,metric_name,metric_value_numeric,raw_payload,collection_run_id) VALUES \"+values+\" ON CONFLICT(ad_account_id,date_start,date_stop,campaign_id,adset_id,ad_id,creative_id,publisher_platform,platform_position,metric_name) DO UPDATE SET metric_value_numeric=EXCLUDED.metric_value_numeric,raw_payload=EXCLUDED.raw_payload,collection_run_id=EXCLUDED.collection_run_id;\":\u0027\u0027; const log=\"INSERT INTO meta_raw.integration_logs(collection_run_id,workflow_name,endpoint,status,error_message,finished_at) VALUES (\"+q(runId)+\",\"+q(\u0027OWNERINC - META RAW - Ads Insights - C3\u0027)+\",\"+q(\u0027/insights\u0027)+\",\"+q(status)+\",\"+q(message)+\",now()); UPDATE meta_raw.collection_runs SET records_received=records_received+\"+rows.length+\",error_count=error_count+\"+issueCount+\",status=CASE WHEN \"+issueCount+\"\u003e0 THEN \u0027PARTIAL\u0027 ELSE status END\"+(server?\",metadata=metadata||jsonb_build_object(\u0027api_error\u0027,true)\":\u0027\u0027)+\" WHERE id=\"+q(runId)+\";\"; return [{json:{query:insert+log,count:out.length}}];"
+                                                      },
+                                       "executeOnce":  true
+                                   },
+                                   {
+                                       "id":  "d63661fc-da22-4eee-b9b5-c9be53191e01",
+                                       "name":  "Upsert Paid Metrics",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1660,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ $json.query }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "executeOnce":  true
+                                   },
+                                   {
+                                       "id":  "fc886b39-2f8c-44d1-a575-d578677e1c28",
+                                       "name":  "Log Insights Warning or Error",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1360,
+                                                        520
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ \"INSERT INTO meta_raw.integration_logs(collection_run_id,workflow_name,endpoint,status,error_message,finished_at) VALUES (\u0027\" + $(\u0027Init Collection Run\u0027).first().json.id + \"\u0027::uuid,\u0027OWNERINC - META RAW - Ads Insights - C3\u0027,\u0027/insights\u0027,CASE WHEN $json.body?.error IS NULL THEN \u0027SUCCESS\u0027 ELSE \u0027ERROR\u0027 END,\u0027\" + JSON.stringify($json.body?.error ?? null).replaceAll(\"\u0027\",\"\u0027\u0027\") + \"\u0027,now());\" }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "disabled":  true
+                                   },
+                                   {
+                                       "id":  "fafdcac6-fb7f-4157-bed1-8b30fb9ea1a9",
+                                       "name":  "Finalize Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1960,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ \"UPDATE meta_raw.collection_runs SET status=CASE WHEN metadata-\u003e\u003e\u0027api_error\u0027=\u0027true\u0027 THEN \u0027FAILED\u0027 WHEN error_count\u003e0 THEN \u0027PARTIAL\u0027 ELSE \u0027SUCCEEDED\u0027 END,finished_at=now() WHERE id=\u0027\" + $(\u0027Init Collection Run\u0027).first().json.id + \"\u0027::uuid RETURNING id,status;\" }}",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "435f8ed0-2c6c-4a07-a43d-8591efca1657",
+                                       "name":  "Ad Insights Input",
+                                       "type":  "n8n-nodes-base.executeWorkflowTrigger",
+                                       "typeVersion":  1,
+                                       "position":  [
+                                                        240,
+                                                        500
+                                                    ],
+                                       "parameters":  {
+
+                                                      }
+                                   }
+                               ],
+                     "connections":  {
+                                         "Fetch Ads Insights":  {
+                                                                    "main":  [
+                                                                                 [
+                                                                                     {
+                                                                                         "node":  "Normalize Metrics",
+                                                                                         "type":  "main",
+                                                                                         "index":  0
+                                                                                     },
+                                                                                     {
+                                                                                         "node":  "Log Insights Warning or Error",
+                                                                                         "type":  "main",
+                                                                                         "index":  0
+                                                                                     }
+                                                                                 ]
+                                                                             ]
+                                                                },
+                                         "Normalize Metrics":  {
+                                                                   "main":  [
+                                                                                [
+                                                                                    {
+                                                                                        "node":  "Upsert Paid Metrics",
+                                                                                        "type":  "main",
+                                                                                        "index":  0
+                                                                                    }
+                                                                                ]
+                                                                            ]
+                                                               },
+                                         "Upsert Paid Metrics":  {
+                                                                     "main":  [
+                                                                                  [
+                                                                                      {
+                                                                                          "node":  "Finalize Collection Run",
+                                                                                          "type":  "main",
+                                                                                          "index":  0
+                                                                                      }
+                                                                                  ]
+                                                                              ]
+                                                                 },
+                                         "Ad Insights Input":  {
+                                                                   "main":  [
+                                                                                [
+                                                                                    {
+                                                                                        "node":  "Resolve Closed Window",
+                                                                                        "type":  "main",
+                                                                                        "index":  0
+                                                                                    }
+                                                                                ]
+                                                                            ]
+                                                               },
+                                         "Manual Trigger":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Resolve Closed Window",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                                         "Resolve Closed Window":  {
+                                                                       "main":  [
+                                                                                    [
+                                                                                        {
+                                                                                            "node":  "Init Collection Run",
+                                                                                            "type":  "main",
+                                                                                            "index":  0
+                                                                                        }
+                                                                                    ]
+                                                                                ]
+                                                                   },
+                                         "Init Collection Run":  {
+                                                                     "main":  [
+                                                                                  [
+                                                                                      {
+                                                                                          "node":  "Fetch Ads Insights",
+                                                                                          "type":  "main",
+                                                                                          "index":  0
+                                                                                      }
+                                                                                  ]
+                                                                              ]
+                                                                 }
+                                     },
+                     "settings":  {
+                                      "executionOrder":  "v1",
+                                      "availableInMCP":  true
+                                  },
+                     "meta":  {
+                                  "aiBuilderAssisted":  true,
+                                  "builderVariant":  "mcp"
+                              },
+                     "nodeGroups":  [
+
+                                    ],
+                     "description":  "Manual inactive daily Meta Ads Insights draft with Sao Paulo closed-window defaults, placement breakdowns and idempotent meta_raw metrics upserts."
+                 }
+}

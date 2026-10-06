@@ -1,0 +1,6 @@
+.env
+data/snapshots/
+data/briefings/
+data/output/
+!tests/fixtures/
+!tests/fixtures/**

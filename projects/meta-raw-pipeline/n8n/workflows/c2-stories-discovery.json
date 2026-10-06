@@ -1,0 +1,298 @@
+{
+    "exportedAt":  "2026-10-06T13:35:26.8135055Z",
+    "source":  "https://n8n.ownerinc.com.br",
+    "workflow":  {
+                     "id":  "F5wU8CN34kHSYfqd",
+                     "name":  "OWNERINC - META RAW - Stories Discovery - C2",
+                     "active":  false,
+                     "activeVersionId":  null,
+                     "versionId":  "69222cef-d9af-47c4-acd9-a85df31e60d4",
+                     "nodes":  [
+                                   {
+                                       "id":  "a426090c-4e98-42c4-8a99-dea324fdd8b0",
+                                       "name":  "Manual Trigger",
+                                       "type":  "n8n-nodes-base.manualTrigger",
+                                       "typeVersion":  1,
+                                       "position":  [
+                                                        240,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+
+                                                      }
+                                   },
+                                   {
+                                       "id":  "e27c941b-2471-46f3-8011-85815fd78b63",
+                                       "name":  "Start Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        520,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "INSERT INTO meta_raw.collection_runs (workflow_name, source, status, metadata) VALUES (\u0027OWNERINC - META RAW - Stories Discovery - C2\u0027, \u0027instagram_graph:/stories\u0027, \u0027RUNNING\u0027, \u0027{\"api_version\":\"v23.0\",\"scope\":\"stories\"}\u0027::jsonb) RETURNING id;",
+                                                          "parameters":  {
+                                                                             "query":  "INSERT INTO meta_raw.collection_runs (workflow_name, source, status, metadata) VALUES (\u0027OWNERINC - META RAW - Stories Discovery - C2\u0027, \u0027instagram_graph:/stories\u0027, \u0027RUNNING\u0027, \u0027{\"api_version\":\"v23.0\",\"scope\":\"stories\"}\u0027::jsonb) RETURNING id;"
+                                                                         }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "17e0b46d-e390-4c79-9096-e87c2c10fc0e",
+                                       "name":  "Fetch Stories",
+                                       "type":  "n8n-nodes-base.httpRequest",
+                                       "typeVersion":  4.4,
+                                       "position":  [
+                                                        800,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "method":  "GET",
+                                                          "url":  "https://graph.facebook.com/v23.0/17841449595671459/stories",
+                                                          "authentication":  "genericCredentialType",
+                                                          "genericAuthType":  "httpHeaderAuth",
+                                                          "sendQuery":  true,
+                                                          "specifyQuery":  "keypair",
+                                                          "queryParameters":  {
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "fields",
+                                                                                                         "value":  "id,media_type,timestamp,expiration_time,story_sequence_id"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "limit",
+                                                                                                         "value":  "100"
+                                                                                                     }
+                                                                                                 ]
+                                                                              },
+                                                          "options":  {
+                                                                          "pagination":  {
+                                                                                             "paginationMode":  "updateAParameterInEachRequest",
+                                                                                             "parameters":  {
+                                                                                                                "parameters":  [
+                                                                                                                                   {
+                                                                                                                                       "type":  "qs",
+                                                                                                                                       "name":  "after",
+                                                                                                                                       "value":  "={{ $response.body.paging?.cursors?.after }}"
+                                                                                                                                   }
+                                                                                                                               ]
+                                                                                                            },
+                                                                                             "paginationCompleteWhen":  "other",
+                                                                                             "completeExpression":  "={{ !$response.body.paging?.next }}",
+                                                                                             "limitPagesFetched":  true,
+                                                                                             "maxRequests":  100,
+                                                                                             "requestInterval":  250
+                                                                                         }
+                                                                      },
+                                                          "response":  {
+                                                                           "fullResponse":  true,
+                                                                           "neverError":  true,
+                                                                           "responseFormat":  "json"
+                                                                       }
+                                                      },
+                                       "credentials":  {
+                                                           "httpHeaderAuth":  {
+                                                                                  "id":  "MGYzd9IzTNPC8EN2",
+                                                                                  "name":  "OWNERINC - META RAW - META GRAPH API - RUNTIME V1"
+                                                                              }
+                                                       },
+                                       "retryOnFail":  true,
+                                       "maxTries":  3,
+                                       "waitBetweenTries":  1000
+                                   },
+                                   {
+                                       "id":  "4ed14626-5e8b-4829-87cf-accd151a40d4",
+                                       "name":  "Normalize Stories and Build Upserts",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1080,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const runId = $(\u0027Start Collection Run\u0027).first().json.id;\nconst lit = (value) =\u003e value === null || value === undefined ? \u0027NULL\u0027 : \"\u0027\" + String(value).replace(/\\\\/g, \u0027\\\\\\\\\u0027).replace(/\u0027/g, \"\u0027\u0027\") + \"\u0027\";\nconst json = (value) =\u003e lit(JSON.stringify(value ?? {})) + \u0027::jsonb\u0027;\nconst rows = [];\nfor (const item of items) {\n  const response = item.json?.body ?? item.json;\n  const data = Array.isArray(response?.data) ? response.data : [];\n  for (const story of data) rows.push({ json: { sql: \"INSERT INTO meta_raw.instagram_stories (account_id, story_id, media_type, published_at, expires_at, story_sequence_id, last_seen_at, raw_payload, collection_run_id) VALUES (\" + lit(\u002717841449595671459\u0027) + \",\" + lit(story.id) + \",\" + lit(story.media_type ?? null) + \",\" + lit(story.timestamp ?? null) + \",\" + lit(story.expiration_time ?? null) + \",\" + lit(story.story_sequence_id ?? null) + \",now(),\" + json(story) + \",\" + lit(runId) + \") ON CONFLICT (account_id, story_id) DO UPDATE SET media_type=EXCLUDED.media_type, published_at=EXCLUDED.published_at, expires_at=EXCLUDED.expires_at, story_sequence_id=EXCLUDED.story_sequence_id, last_seen_at=now(), raw_payload=EXCLUDED.raw_payload, collection_run_id=EXCLUDED.collection_run_id RETURNING story_id;\" } });\n}\nif (!rows.length) rows.push({ json: { sql: \u0027SELECT 0 AS stories_upserted;\u0027 } });\nreturn rows;"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "74ed6e03-c5aa-4154-81e6-a49e7c788feb",
+                                       "name":  "Upsert Stories",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1360,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "={{ $json.sql }}"
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "37934f54-13c4-4fe8-89b7-8484945f6e19",
+                                       "name":  "Finish Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1640,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "=UPDATE meta_raw.collection_runs SET finished_at=now(), status=CASE WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_error }} THEN \u0027FAILED\u0027 WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_warning }} OR NOT {{ $(\u0027Assess Stories Pagination\u0027).first().json._pagination_complete }} THEN \u0027PARTIAL\u0027 ELSE \u0027SUCCEEDED\u0027 END, records_received=(SELECT count(*) FROM meta_raw.instagram_stories WHERE collection_run_id=\u0027{{ $(\u0027Start Collection Run\u0027).first().json.id }}\u0027), error_count=CASE WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_error }} OR {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_warning }} OR NOT {{ $(\u0027Assess Stories Pagination\u0027).first().json._pagination_complete }} THEN 1 ELSE 0 END, metadata=metadata || jsonb_build_object(\u0027api_version\u0027,\u0027v23.0\u0027,\u0027pagination_complete\u0027,{{ $(\u0027Assess Stories Pagination\u0027).first().json._pagination_complete }},\u0027api_warning\u0027,{{ $(\u0027Assess Stories Pagination\u0027).first().json._api_warning }}) WHERE id=\u0027{{ $(\u0027Start Collection Run\u0027).first().json.id }}\u0027 RETURNING id,status;",
+                                                          "parameters":  {
+                                                                             "query":  "=UPDATE meta_raw.collection_runs SET finished_at=now(), status=CASE WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_error }} THEN \u0027FAILED\u0027 WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_warning }} OR NOT {{ $(\u0027Assess Stories Pagination\u0027).first().json._pagination_complete }} THEN \u0027PARTIAL\u0027 ELSE \u0027SUCCEEDED\u0027 END, records_received=(SELECT count(*) FROM meta_raw.instagram_stories WHERE collection_run_id=\u0027{{ $(\u0027Start Collection Run\u0027).first().json.id }}\u0027), error_count=CASE WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_error }} OR {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_warning }} OR NOT {{ $(\u0027Assess Stories Pagination\u0027).first().json._pagination_complete }} THEN 1 ELSE 0 END, metadata=metadata || jsonb_build_object(\u0027api_version\u0027,\u0027v23.0\u0027,\u0027pagination_complete\u0027,{{ $(\u0027Assess Stories Pagination\u0027).first().json._pagination_complete }},\u0027api_warning\u0027,{{ $(\u0027Assess Stories Pagination\u0027).first().json._api_warning }}) WHERE id=\u0027{{ $(\u0027Start Collection Run\u0027).first().json.id }}\u0027 RETURNING id,status;"
+                                                                         }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "executeOnce":  true
+                                   },
+                                   {
+                                       "id":  "6e11fcd5-535a-4f10-9813-78422b22ffc9",
+                                       "name":  "Assess Stories Pagination",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1040,
+                                                        520
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const pages=$input.all(); const last=pages.at(-1)?.json??{}; const body=last.body??last; const statusCode=Number(last.statusCode??200); const apiError=pages.some(i=\u003eNumber(i.json?.statusCode??200)\u003e=500); const apiWarning=pages.some(i=\u003eNumber(i.json?.statusCode??200)\u003e=400||Boolean((i.json?.body??i.json)?.error)); const paginationComplete=!body.paging?.next; return pages.map(item=\u003e({json:{...item.json,_pagination_complete:paginationComplete,_api_error:apiError,_api_warning:apiWarning,_status_code:statusCode}}));"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "371a2917-026e-49ff-90df-98e9e69597f4",
+                                       "name":  "Log Stories Warning or Error",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1320,
+                                                        520
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "=INSERT INTO meta_raw.integration_logs (collection_run_id, workflow_name, endpoint, status, http_status, error_code, error_message, finished_at) SELECT \u0027{{ $(\u0027Start Collection Run\u0027).first().json.id }}\u0027,\u0027OWNERINC - META RAW - Stories Discovery - C2\u0027,\u0027/stories\u0027,CASE WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_error }} THEN \u0027ERROR\u0027 ELSE \u0027WARNING\u0027 END,{{ $(\u0027Assess Stories Pagination\u0027).first().json._status_code }},CASE WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_error }} THEN \u0027STORIES_SERVER_ERROR\u0027 ELSE \u0027STORIES_PAGINATION_OR_API_WARNING\u0027 END,CASE WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_error }} THEN \u0027Stories API returned a server error\u0027 WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_warning }} THEN \u0027Stories API returned an error response\u0027 ELSE \u0027Stories pagination stopped at the configured 100-page limit\u0027 END,now() WHERE {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_warning }} OR NOT {{ $(\u0027Assess Stories Pagination\u0027).first().json._pagination_complete }};",
+                                                          "parameters":  {
+                                                                             "query":  "=INSERT INTO meta_raw.integration_logs (collection_run_id, workflow_name, endpoint, status, http_status, error_code, error_message, finished_at) SELECT \u0027{{ $(\u0027Start Collection Run\u0027).first().json.id }}\u0027,\u0027OWNERINC - META RAW - Stories Discovery - C2\u0027,\u0027/stories\u0027,CASE WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_error }} THEN \u0027ERROR\u0027 ELSE \u0027WARNING\u0027 END,{{ $(\u0027Assess Stories Pagination\u0027).first().json._status_code }},CASE WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_error }} THEN \u0027STORIES_SERVER_ERROR\u0027 ELSE \u0027STORIES_PAGINATION_OR_API_WARNING\u0027 END,CASE WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_error }} THEN \u0027Stories API returned a server error\u0027 WHEN {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_warning }} THEN \u0027Stories API returned an error response\u0027 ELSE \u0027Stories pagination stopped at the configured 100-page limit\u0027 END,now() WHERE {{ $(\u0027Assess Stories Pagination\u0027).first().json._api_warning }} OR NOT {{ $(\u0027Assess Stories Pagination\u0027).first().json._pagination_complete }};"
+                                                                         }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   }
+                               ],
+                     "connections":  {
+                                         "Manual Trigger":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Start Collection Run",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                                         "Start Collection Run":  {
+                                                                      "main":  [
+                                                                                   [
+                                                                                       {
+                                                                                           "node":  "Fetch Stories",
+                                                                                           "type":  "main",
+                                                                                           "index":  0
+                                                                                       }
+                                                                                   ]
+                                                                               ]
+                                                                  },
+                                         "Fetch Stories":  {
+                                                               "main":  [
+                                                                            [
+                                                                                {
+                                                                                    "node":  "Assess Stories Pagination",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ]
+                                                                        ]
+                                                           },
+                                         "Normalize Stories and Build Upserts":  {
+                                                                                     "main":  [
+                                                                                                  [
+                                                                                                      {
+                                                                                                          "node":  "Upsert Stories",
+                                                                                                          "type":  "main",
+                                                                                                          "index":  0
+                                                                                                      }
+                                                                                                  ]
+                                                                                              ]
+                                                                                 },
+                                         "Upsert Stories":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Finish Collection Run",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                                         "Assess Stories Pagination":  {
+                                                                           "main":  [
+                                                                                        [
+                                                                                            {
+                                                                                                "node":  "Normalize Stories and Build Upserts",
+                                                                                                "type":  "main",
+                                                                                                "index":  0
+                                                                                            },
+                                                                                            {
+                                                                                                "node":  "Log Stories Warning or Error",
+                                                                                                "type":  "main",
+                                                                                                "index":  0
+                                                                                            }
+                                                                                        ]
+                                                                                    ]
+                                                                       }
+                                     },
+                     "settings":  {
+                                      "executionOrder":  "v1",
+                                      "availableInMCP":  true
+                                  },
+                     "meta":  {
+                                  "aiBuilderAssisted":  true,
+                                  "builderVariant":  "mcp"
+                              },
+                     "nodeGroups":  [
+
+                                    ],
+                     "description":  "Manual, paginated Instagram Stories discovery with meta_raw upserts, collection run tracking, and raw payload preservation."
+                 }
+}

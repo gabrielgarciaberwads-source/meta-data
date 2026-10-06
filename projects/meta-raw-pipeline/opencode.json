@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "n8n-meta-raw": {
+      "type": "remote",
+      "url": "https://n8n.ownerinc.com.br/mcp-server/http",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer {env:N8N_MCP_TOKEN}"
+      }
+    }
+  }
+}

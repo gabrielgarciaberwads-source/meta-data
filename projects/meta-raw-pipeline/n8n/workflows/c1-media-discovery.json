@@ -1,0 +1,489 @@
+{
+    "exportedAt":  "2026-10-06T13:35:26.5168085Z",
+    "source":  "https://n8n.ownerinc.com.br",
+    "workflow":  {
+                     "id":  "6Lu7bCvKPMMJKkfE",
+                     "name":  "OWNERINC - META RAW - Media Discovery - C1",
+                     "active":  false,
+                     "activeVersionId":  null,
+                     "versionId":  "45089695-d42b-4e0d-8965-e836bc0bbde5",
+                     "nodes":  [
+                                   {
+                                       "id":  "f3113772-f7cc-4367-9b46-b511583c645a",
+                                       "name":  "Start C1 Media Discovery",
+                                       "type":  "n8n-nodes-base.manualTrigger",
+                                       "typeVersion":  1,
+                                       "position":  [
+                                                        240,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+
+                                                      }
+                                   },
+                                   {
+                                       "id":  "95249d93-fc51-477e-b29e-e10e5bdb639c",
+                                       "name":  "Start Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        520,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "WITH bounds AS ( SELECT (current_date - 30)::date AS period_start, current_date::date AS period_end ), inserted AS ( INSERT INTO meta_raw.collection_runs (workflow_name, source, status, period_start, period_end, metadata) SELECT \u0027OWNERINC - META RAW - Media Discovery - C1\u0027, \u0027instagram.media\u0027, \u0027RUNNING\u0027, period_start, period_end, jsonb_build_object(\u0027account_id\u0027, \u002717841449595671459\u0027, \u0027scope\u0027, \u0027organic_media_discovery\u0027, \u0027api_version\u0027, \u0027v23.0\u0027, \u0027window_days\u0027, 30) FROM bounds RETURNING id, period_start, period_end ) SELECT id AS collection_run_id, period_start::text AS window_since, (period_end + 1)::text AS window_until FROM inserted",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "e1838f27-8cda-4f7e-aaed-c24f4f3d134b",
+                                       "name":  "Fetch Instagram Media",
+                                       "type":  "n8n-nodes-base.httpRequest",
+                                       "typeVersion":  4.4,
+                                       "position":  [
+                                                        820,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "method":  "GET",
+                                                          "url":  "https://graph.facebook.com/v23.0/17841449595671459/media",
+                                                          "authentication":  "genericCredentialType",
+                                                          "genericAuthType":  "httpHeaderAuth",
+                                                          "sendQuery":  true,
+                                                          "specifyQuery":  "keypair",
+                                                          "queryParameters":  {
+                                                                                  "parameters":  [
+                                                                                                     {
+                                                                                                         "name":  "fields",
+                                                                                                         "value":  "id,timestamp,media_type,media_product_type,permalink,caption,username,owner"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "limit",
+                                                                                                         "value":  "100"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "since",
+                                                                                                         "value":  "={{ $(\u0027Start Collection Run\u0027).first().json.window_since }}"
+                                                                                                     },
+                                                                                                     {
+                                                                                                         "name":  "until",
+                                                                                                         "value":  "={{ $(\u0027Start Collection Run\u0027).first().json.window_until }}"
+                                                                                                     }
+                                                                                                 ]
+                                                                              },
+                                                          "options":  {
+                                                                          "pagination":  {
+                                                                                             "pagination":  {
+                                                                                                                "paginationMode":  "updateAParameterInEachRequest",
+                                                                                                                "parameters":  {
+                                                                                                                                   "parameters":  [
+                                                                                                                                                      {
+                                                                                                                                                          "type":  "qs",
+                                                                                                                                                          "name":  "after",
+                                                                                                                                                          "value":  "={{ $response.body.paging.cursors.after }}"
+                                                                                                                                                      }
+                                                                                                                                                  ]
+                                                                                                                               },
+                                                                                                                "paginationCompleteWhen":  "other",
+                                                                                                                "completeExpression":  "={{ !$response.body.paging?.next }}",
+                                                                                                                "limitPagesFetched":  true,
+                                                                                                                "maxRequests":  100,
+                                                                                                                "requestInterval":  250
+                                                                                                            }
+                                                                                         },
+                                                                          "response":  {
+                                                                                           "responseFormat":  "json"
+                                                                                       }
+                                                                      }
+                                                      },
+                                       "onError":  "continueErrorOutput",
+                                       "credentials":  {
+                                                           "httpHeaderAuth":  {
+                                                                                  "id":  "MGYzd9IzTNPC8EN2",
+                                                                                  "name":  "OWNERINC - META RAW - META GRAPH API - RUNTIME V1"
+                                                                              }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "a9d15b89-0089-4fd0-a4b2-dd6999b059e0",
+                                       "name":  "Normalize Media Pages",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1120,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const runId = $(\u0027Start Collection Run\u0027).first().json.collection_run_id;\nconst out = [];\nfor (const item of $input.all()) {\n  const page = item.json ?? {};\n  for (const media of (page.data ?? [])) {\n    const mediaType = media.media_type ?? null;\n    const productType = media.media_product_type ?? null;\n    out.push({ json: { account_id: \u002717841449595671459\u0027, instagram_media_id: String(media.id), media_type: mediaType, media_product_type: productType, caption: media.caption ?? null, permalink: media.permalink ?? null, published_at: media.timestamp ?? null, username: media.username ?? null, owner_instagram_id: media.owner?.id ?? null, is_story: false, is_reel: productType === \u0027REELS\u0027, is_collab: false, raw_payload: media, collection_run_id: runId, pagination_complete: page._pagination_complete ?? true, _empty: \u0027false\u0027 } });\n  }\n}\nif (out.length === 0) {\n  const firstPage = $input.first()?.json ?? {};\n  out.push({ json: { collection_run_id: runId, pagination_complete: firstPage._pagination_complete ?? true, _empty: \u0027true\u0027 } });\n}\nreturn out;"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "83b2f8ef-4ee8-4340-9bee-dc23a3ce06b5",
+                                       "name":  "Upsert Instagram Media",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1420,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "upsert",
+                                                          "schema":  {
+                                                                         "__rl":  true,
+                                                                         "mode":  "name",
+                                                                         "value":  "meta_raw"
+                                                                     },
+                                                          "table":  {
+                                                                        "__rl":  true,
+                                                                        "mode":  "name",
+                                                                        "value":  "instagram_media"
+                                                                    },
+                                                          "columns":  {
+                                                                          "mappingMode":  "defineBelow",
+                                                                          "matchingColumns":  [
+                                                                                                  "account_id",
+                                                                                                  "instagram_media_id"
+                                                                                              ],
+                                                                          "value":  {
+                                                                                        "account_id":  "={{ $json.account_id }}",
+                                                                                        "instagram_media_id":  "={{ $json.instagram_media_id }}",
+                                                                                        "media_type":  "={{ $json.media_type }}",
+                                                                                        "media_product_type":  "={{ $json.media_product_type }}",
+                                                                                        "caption":  "={{ $json.caption }}",
+                                                                                        "permalink":  "={{ $json.permalink }}",
+                                                                                        "published_at":  "={{ $json.published_at }}",
+                                                                                        "username":  "={{ $json.username }}",
+                                                                                        "owner_instagram_id":  "={{ $json.owner_instagram_id }}",
+                                                                                        "is_story":  "={{ $json.is_story }}",
+                                                                                        "is_reel":  "={{ $json.is_reel }}",
+                                                                                        "is_collab":  "={{ $json.is_collab }}",
+                                                                                        "last_seen_at":  "={{ $now.toISO() }}",
+                                                                                        "raw_payload":  "={{ $json.raw_payload }}",
+                                                                                        "collection_run_id":  "={{ $json.collection_run_id }}"
+                                                                                    }
+                                                                      },
+                                                          "options":  {
+                                                                          "queryBatching":  "transaction",
+                                                                          "replaceEmptyStrings":  true
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "b3145ac2-27ca-4e20-8ff5-8c28630ef2f0",
+                                       "name":  "Sanitize Error",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1120,
+                                                        560
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "return $input.all().map(item =\u003e { const j = item.json ?? {}; return { json: { endpoint: \u0027instagram.media\u0027, status: \u0027ERROR\u0027, http_status: j.statusCode ?? j.status ?? null, error_code: j.error?.code ?? j.code ?? null, error_message: String(j.error?.message ?? j.message ?? \u0027Media discovery request failed\u0027).replace(/access_token=[^\u0026\\s]+/gi, \u0027access_token=[REDACTED]\u0027).replace(/[\\n\\r,]+/g, \u0027 \u0027).slice(0, 1000), attempt: 1 } }; });"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "619f2edf-f27f-41cb-9cd9-41916b220472",
+                                       "name":  "Log Integration Error",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1420,
+                                                        560
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "INSERT INTO meta_raw.integration_logs (collection_run_id, workflow_name, endpoint, status, http_status, error_code, error_message, attempt, finished_at) VALUES ($1::uuid, \u0027OWNERINC - META RAW - Media Discovery - C1\u0027, $2, \u0027ERROR\u0027, $3, $4, $5, $6, now())",
+                                                          "options":  {
+                                                                          "queryReplacement":  "={{ $(\u0027Start Collection Run\u0027).first().json.collection_run_id }},={{ $json.endpoint }},={{ $json.http_status }},={{ $json.error_code }},={{ $json.error_message }},={{ $json.attempt }}"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "onError":  "continueRegularOutput"
+                                   },
+                                   {
+                                       "id":  "e3e71732-eceb-499f-927c-9d8f61fed866",
+                                       "name":  "Finalize Collection Run",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1720,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "WITH run_counts AS ( SELECT r.id, count(m.id)::integer AS received, count(m.id) FILTER (WHERE m.first_seen_at \u003e= r.started_at)::integer AS inserted FROM meta_raw.collection_runs r LEFT JOIN meta_raw.instagram_media m ON m.collection_run_id = r.id WHERE r.id = $1::uuid GROUP BY r.id ) UPDATE meta_raw.collection_runs r SET status = CASE WHEN $2::boolean THEN \u0027SUCCEEDED\u0027 ELSE \u0027PARTIAL\u0027 END, finished_at = now(), records_received = c.received, records_inserted = c.inserted, records_updated = c.received - c.inserted, error_count = 0, metadata = r.metadata || jsonb_build_object(\u0027pagination_complete\u0027, $2::boolean) FROM run_counts c WHERE r.id = c.id",
+                                                          "options":  {
+                                                                          "queryReplacement":  "={{ $(\u0027Start Collection Run\u0027).first().json.collection_run_id }},={{ $(\u0027Assess Pagination Window\u0027).first().json._pagination_complete }}"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "executeOnce":  true
+                                   },
+                                   {
+                                       "id":  "90af5613-e989-4a9b-8f98-86bf75c82c3a",
+                                       "name":  "Mark Collection Run Failed",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        1720,
+                                                        560
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "UPDATE meta_raw.collection_runs SET status = \u0027FAILED\u0027, finished_at = now(), error_count = error_count + 1 WHERE id = $1::uuid",
+                                                          "options":  {
+                                                                          "queryReplacement":  "={{ $(\u0027Start Collection Run\u0027).first().json.collection_run_id }}"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       },
+                                       "executeOnce":  true
+                                   },
+                                   {
+                                       "id":  "1b65c8ce-19f8-413d-a7e8-fc001069d6dd",
+                                       "name":  "Reconcile Stale Collection Runs",
+                                       "type":  "n8n-nodes-base.postgres",
+                                       "typeVersion":  2.7,
+                                       "position":  [
+                                                        380,
+                                                        520
+                                                    ],
+                                       "parameters":  {
+                                                          "resource":  "database",
+                                                          "operation":  "executeQuery",
+                                                          "query":  "WITH stale AS ( UPDATE meta_raw.collection_runs SET status = \u0027FAILED\u0027, finished_at = now(), error_count = error_count + 1, metadata = metadata || jsonb_build_object(\u0027failure_reason\u0027, \u0027stale_run_reconciled\u0027) WHERE workflow_name = \u0027OWNERINC - META RAW - Media Discovery - C1\u0027 AND source = \u0027instagram.media\u0027 AND status = \u0027RUNNING\u0027 AND started_at \u003c now() - interval \u002720 minutes\u0027 RETURNING id ) SELECT count(*)::integer AS stale_runs_failed FROM stale",
+                                                          "options":  {
+                                                                          "queryBatching":  "single"
+                                                                      }
+                                                      },
+                                       "credentials":  {
+                                                           "postgres":  {
+                                                                            "id":  "Og0fnARJo2ylLGWW",
+                                                                            "name":  "OWNERINC - META RAW - POSTGRES - RUNTIME V1"
+                                                                        }
+                                                       }
+                                   },
+                                   {
+                                       "id":  "b43a7948-fa9b-4f10-9f12-8cf61eb11612",
+                                       "name":  "Assess Pagination Window",
+                                       "type":  "n8n-nodes-base.code",
+                                       "typeVersion":  2,
+                                       "position":  [
+                                                        1060,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "mode":  "runOnceForAllItems",
+                                                          "language":  "javaScript",
+                                                          "jsCode":  "const pages = $input.all();\nconst lastPage = pages.at(-1)?.json ?? {};\nconst paginationComplete = !lastPage.paging?.next;\nreturn pages.map(item =\u003e ({ json: { ...item.json, _pagination_complete: paginationComplete } }));"
+                                                      }
+                                   },
+                                   {
+                                       "id":  "2e80a3d7-7238-4a12-a8ed-8285b7c8e248",
+                                       "name":  "Has Media Items?",
+                                       "type":  "n8n-nodes-base.if",
+                                       "typeVersion":  2.3,
+                                       "position":  [
+                                                        1360,
+                                                        300
+                                                    ],
+                                       "parameters":  {
+                                                          "conditions":  {
+                                                                             "options":  {
+                                                                                             "caseSensitive":  true,
+                                                                                             "leftValue":  "",
+                                                                                             "typeValidation":  "strict"
+                                                                                         },
+                                                                             "conditions":  [
+                                                                                                {
+                                                                                                    "leftValue":  "={{ $json._empty }}",
+                                                                                                    "operator":  {
+                                                                                                                     "type":  "string",
+                                                                                                                     "operation":  "equals"
+                                                                                                                 },
+                                                                                                    "rightValue":  "false"
+                                                                                                }
+                                                                                            ],
+                                                                             "combinator":  "and"
+                                                                         }
+                                                      }
+                                   }
+                               ],
+                     "connections":  {
+                                         "Start Collection Run":  {
+                                                                      "main":  [
+                                                                                   [
+                                                                                       {
+                                                                                           "node":  "Fetch Instagram Media",
+                                                                                           "type":  "main",
+                                                                                           "index":  0
+                                                                                       }
+                                                                                   ]
+                                                                               ]
+                                                                  },
+                                         "Fetch Instagram Media":  {
+                                                                       "main":  [
+                                                                                    [
+                                                                                        {
+                                                                                            "node":  "Assess Pagination Window",
+                                                                                            "type":  "main",
+                                                                                            "index":  0
+                                                                                        }
+                                                                                    ],
+                                                                                    [
+                                                                                        {
+                                                                                            "node":  "Sanitize Error",
+                                                                                            "type":  "main",
+                                                                                            "index":  0
+                                                                                        }
+                                                                                    ]
+                                                                                ]
+                                                                   },
+                                         "Sanitize Error":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Log Integration Error",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                                         "Upsert Instagram Media":  {
+                                                                        "main":  [
+                                                                                     [
+                                                                                         {
+                                                                                             "node":  "Finalize Collection Run",
+                                                                                             "type":  "main",
+                                                                                             "index":  0
+                                                                                         }
+                                                                                     ]
+                                                                                 ]
+                                                                    },
+                                         "Log Integration Error":  {
+                                                                       "main":  [
+                                                                                    [
+                                                                                        {
+                                                                                            "node":  "Mark Collection Run Failed",
+                                                                                            "type":  "main",
+                                                                                            "index":  0
+                                                                                        }
+                                                                                    ]
+                                                                                ]
+                                                                   },
+                                         "Start C1 Media Discovery":  {
+                                                                          "main":  [
+                                                                                       [
+                                                                                           {
+                                                                                               "node":  "Reconcile Stale Collection Runs",
+                                                                                               "type":  "main",
+                                                                                               "index":  0
+                                                                                           }
+                                                                                       ]
+                                                                                   ]
+                                                                      },
+                                         "Reconcile Stale Collection Runs":  {
+                                                                                 "main":  [
+                                                                                              [
+                                                                                                  {
+                                                                                                      "node":  "Start Collection Run",
+                                                                                                      "type":  "main",
+                                                                                                      "index":  0
+                                                                                                  }
+                                                                                              ]
+                                                                                          ]
+                                                                             },
+                                         "Assess Pagination Window":  {
+                                                                          "main":  [
+                                                                                       [
+                                                                                           {
+                                                                                               "node":  "Normalize Media Pages",
+                                                                                               "type":  "main",
+                                                                                               "index":  0
+                                                                                           }
+                                                                                       ]
+                                                                                   ]
+                                                                      },
+                                         "Normalize Media Pages":  {
+                                                                       "main":  [
+                                                                                    [
+                                                                                        {
+                                                                                            "node":  "Has Media Items?",
+                                                                                            "type":  "main",
+                                                                                            "index":  0
+                                                                                        }
+                                                                                    ]
+                                                                                ]
+                                                                   },
+                                         "Has Media Items?":  {
+                                                                  "main":  [
+                                                                               [
+                                                                                   {
+                                                                                       "node":  "Upsert Instagram Media",
+                                                                                       "type":  "main",
+                                                                                       "index":  0
+                                                                                   }
+                                                                               ],
+                                                                               [
+                                                                                   {
+                                                                                       "node":  "Finalize Collection Run",
+                                                                                       "type":  "main",
+                                                                                       "index":  0
+                                                                                   }
+                                                                               ]
+                                                                           ]
+                                                              }
+                                     },
+                     "settings":  {
+                                      "executionOrder":  "v1",
+                                      "availableInMCP":  true
+                                  },
+                     "meta":  {
+                                  "aiBuilderAssisted":  true,
+                                  "builderVariant":  "mcp"
+                              },
+                     "nodeGroups":  [
+
+                                    ],
+                     "description":  "C1-only Instagram organic media discovery for ownerinc.gramado with pagination, idempotent media upsert, raw payload preservation, collection run tracking, and safe error logging."
+                 }
+}
