@@ -23,7 +23,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE: ghcr.io/ownerinc/meta-raw-dashboard
+  IMAGE: ghcr.io/gabrielgarciaberwads-source/meta-raw-dashboard
 
 jobs:
   verify:

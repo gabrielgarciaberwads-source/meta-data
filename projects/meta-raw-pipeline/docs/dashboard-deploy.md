@@ -57,7 +57,7 @@ segredos do Meta, n8n ou PostgreSQL.
 Defina `DASHBOARD_IMAGE` para um SHA anterior e execute no VPS:
 
 ```sh
-DASHBOARD_IMAGE=ghcr.io/OWNERINC/meta-raw-dashboard:<sha-anterior> \
+DASHBOARD_IMAGE=ghcr.io/gabrielgarciaberwads-source/meta-raw-dashboard:<sha-anterior> \
   /opt/ownerinc/apps/meta-raw-pipeline/deploy-dashboard.sh
 ```
 
